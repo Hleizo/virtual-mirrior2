@@ -16,6 +16,12 @@ import {
   MenuItem,
   Card,
   CardContent,
+  TextField,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  InputAdornment,
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import type { GridColDef, GridRowsProp } from '@mui/x-data-grid';
@@ -24,9 +30,12 @@ import DownloadIcon from '@mui/icons-material/Download';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import MedicalServicesIcon from '@mui/icons-material/MedicalServices';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import SearchIcon from '@mui/icons-material/Search';
+import AddIcon from '@mui/icons-material/Add';
 import { useNavigate } from 'react-router-dom';
 import { useSessionStore } from '../store/session';
 import type { SessionSummary, TaskMetric } from '../store/session';
+import { PieChart, Pie, Cell, ResponsiveContainer, Legend, Tooltip } from 'recharts';
 
 // Mock session data
 const mockSessions: GridRowsProp = [
@@ -136,11 +145,31 @@ const AdminDashboard = () => {
   const [selectedSession, setSelectedSession] = useState<any>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [riskFilter, setRiskFilter] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [addDialogOpen, setAddDialogOpen] = useState(false);
+  const [newSessionData, setNewSessionData] = useState({
+    patientName: '',
+    age: '',
+    riskLevel: 'low',
+  });
 
-  // Filter sessions based on risk level
-  const filteredSessions = riskFilter === 'all'
-    ? mockSessions
-    : mockSessions.filter((session: any) => session.riskLevel === riskFilter);
+  // Filter sessions based on risk level and search query
+  const filteredSessions = mockSessions
+    .filter((session: any) => {
+      // Risk filter
+      if (riskFilter !== 'all' && session.riskLevel !== riskFilter) {
+        return false;
+      }
+      // Search filter (patient name or session ID)
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        return (
+          session.patientName.toLowerCase().includes(query) ||
+          session.sessionId.toLowerCase().includes(query)
+        );
+      }
+      return true;
+    });
 
   // DataGrid columns
   const columns: GridColDef[] = [
@@ -299,6 +328,34 @@ const AdminDashboard = () => {
     // Placeholder - will integrate with backend
   };
 
+  const handleAddSession = () => {
+    setAddDialogOpen(true);
+  };
+
+  const handleCloseAddDialog = () => {
+    setAddDialogOpen(false);
+    setNewSessionData({ patientName: '', age: '', riskLevel: 'low' });
+  };
+
+  const handleSaveNewSession = () => {
+    alert(`New session added:\nPatient: ${newSessionData.patientName}\nAge: ${newSessionData.age}\nRisk: ${newSessionData.riskLevel}`);
+    // In a real app, this would POST to backend
+    handleCloseAddDialog();
+  };
+
+  // Prepare pie chart data
+  const riskDistribution = mockSessions.reduce((acc: any, session: any) => {
+    const level = session.riskLevel;
+    acc[level] = (acc[level] || 0) + 1;
+    return acc;
+  }, {});
+
+  const pieChartData = [
+    { name: 'Normal (Low)', value: riskDistribution.low || 0, color: '#2e7d32' },
+    { name: 'Monitor (Moderate)', value: riskDistribution.moderate || 0, color: '#ed6c02' },
+    { name: 'High Risk', value: riskDistribution.high || 0, color: '#d32f2f' },
+  ];
+
   return (
     <Container maxWidth="xl" sx={{ py: 4 }}>
       {/* Header */}
@@ -320,7 +377,7 @@ const AdminDashboard = () => {
 
       {/* Filters */}
       <Paper elevation={2} sx={{ p: 2, mb: 3, borderRadius: 2 }}>
-        <Stack direction="row" spacing={2} alignItems="center">
+        <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap">
           <Typography variant="subtitle1" fontWeight={600}>
             Filters:
           </Typography>
@@ -337,7 +394,57 @@ const AdminDashboard = () => {
               <MenuItem value="high">High Risk</MenuItem>
             </Select>
           </FormControl>
+          <Button
+            variant="contained"
+            startIcon={<AddIcon />}
+            onClick={handleAddSession}
+            color="primary"
+          >
+            Add Session
+          </Button>
+          <Box sx={{ flex: 1 }} />
+          <TextField
+            size="small"
+            placeholder="Search by patient name or ID..."
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            InputProps={{
+              startAdornment: (
+                <InputAdornment position="start">
+                  <SearchIcon />
+                </InputAdornment>
+              ),
+            }}
+            sx={{ minWidth: 300 }}
+          />
         </Stack>
+      </Paper>
+
+      {/* Analytics Panel - Pie Chart */}
+      <Paper elevation={2} sx={{ p: 3, mb: 3, borderRadius: 2 }}>
+        <Typography variant="h6" fontWeight={600} gutterBottom>
+          Session Distribution by Risk Level
+        </Typography>
+        <ResponsiveContainer width="100%" height={300}>
+          <PieChart>
+            <Pie
+              data={pieChartData}
+              cx="50%"
+              cy="50%"
+              labelLine={false}
+              label={({ name, value }) => `${name}: ${value}`}
+              outerRadius={100}
+              fill="#8884d8"
+              dataKey="value"
+            >
+              {pieChartData.map((entry, index) => (
+                <Cell key={`cell-${index}`} fill={entry.color} />
+              ))}
+            </Pie>
+            <Tooltip />
+            <Legend />
+          </PieChart>
+        </ResponsiveContainer>
       </Paper>
 
       {/* Data Grid */}
@@ -538,6 +645,69 @@ const AdminDashboard = () => {
           </Box>
         )}
       </Drawer>
+
+      {/* Add Session Dialog */}
+      <Dialog
+        open={addDialogOpen}
+        onClose={handleCloseAddDialog}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          <Typography variant="h6" fontWeight={600}>
+            Add New Session
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            Enter dummy data for testing (no backend integration yet)
+          </Typography>
+        </DialogTitle>
+        <DialogContent>
+          <Stack spacing={2.5} sx={{ mt: 1 }}>
+            <TextField
+              fullWidth
+              label="Patient Name"
+              value={newSessionData.patientName}
+              onChange={(e) => setNewSessionData({ ...newSessionData, patientName: e.target.value })}
+              placeholder="e.g., Anonymous Child H"
+            />
+            <Stack direction="row" spacing={2}>
+              <TextField
+                fullWidth
+                label="Age"
+                type="number"
+                value={newSessionData.age}
+                onChange={(e) => setNewSessionData({ ...newSessionData, age: e.target.value })}
+                placeholder="e.g., 8"
+                inputProps={{ min: 1, max: 18 }}
+              />
+              <FormControl fullWidth>
+                <InputLabel>Risk Level</InputLabel>
+                <Select
+                  value={newSessionData.riskLevel}
+                  label="Risk Level"
+                  onChange={(e) => setNewSessionData({ ...newSessionData, riskLevel: e.target.value })}
+                >
+                  <MenuItem value="low">Low Risk</MenuItem>
+                  <MenuItem value="moderate">Moderate Risk</MenuItem>
+                  <MenuItem value="high">High Risk</MenuItem>
+                </Select>
+              </FormControl>
+            </Stack>
+          </Stack>
+        </DialogContent>
+        <DialogActions sx={{ p: 2.5 }}>
+          <Button onClick={handleCloseAddDialog} variant="outlined">
+            Cancel
+          </Button>
+          <Button
+            onClick={handleSaveNewSession}
+            variant="contained"
+            disabled={!newSessionData.patientName || !newSessionData.age}
+          >
+            Add Session
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

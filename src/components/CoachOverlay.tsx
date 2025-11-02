@@ -1,12 +1,14 @@
 import { useEffect, useRef } from 'react';
-import { Chip, LinearProgress, Box, Typography, Paper } from '@mui/material';
+import { Chip, Box, Typography, Paper } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { speak } from '../utils/voice';
 import type { TaskUpdate } from '../logic/tasks';
+import GradientLinearProgress from './GradientLinearProgress';
 
 interface CoachOverlayProps {
   taskUpdate: TaskUpdate | null;
   currentTaskName?: string;
+  muted?: boolean;
 }
 
 // Mapping of task states to Arabic voice feedback
@@ -24,12 +26,14 @@ const VOICE_MAP: Record<string, string> = {
   'jump-success': 'رائع',
 };
 
-const CoachOverlay = ({ taskUpdate, currentTaskName }: CoachOverlayProps) => {
+const CoachOverlay = ({ taskUpdate, currentTaskName, muted = false }: CoachOverlayProps) => {
   const lastSpeechTime = useRef<number>(0);
   const lastMessageLevel = useRef<string>('');
 
   // Helper to speak with debouncing
   const speakIfChanged = (level: string) => {
+    if (muted) return; // Skip if muted
+    
     const now = Date.now();
     const timeSinceLastSpeech = now - lastSpeechTime.current;
     
@@ -197,16 +201,10 @@ const CoachOverlay = ({ taskUpdate, currentTaskName }: CoachOverlayProps) => {
           backdropFilter: 'blur(10px)',
         }}
       >
-        <LinearProgress
-          variant="determinate"
+        <GradientLinearProgress
           value={progressPercent}
           sx={{
             height: 8,
-            '& .MuiLinearProgress-bar': {
-              bgcolor: taskUpdate.level === 'success' ? 'success.main' : 
-                       taskUpdate.level === 'warning' ? 'warning.main' : 
-                       'primary.main',
-            },
           }}
         />
         <Box sx={{ p: 2, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
