@@ -15,6 +15,8 @@ const HomePage = () => {
   console.log('HomePage rendering...');
   const navigate = useNavigate();
   const setCurrent = useSessionStore((state) => state.setCurrent);
+  const currentSession = useSessionStore((state) => state.current);
+  const childProfile = useSessionStore((state) => state.childProfile);
   const [language, setLanguage] = useState<'en' | 'ar'>('en');
 
   const toggleLanguage = () => {
@@ -108,12 +110,34 @@ const HomePage = () => {
             component="h2"
             sx={{
               color: 'text.secondary',
-              mb: 4,
+              mb: 2,
               fontSize: { xs: '1rem', md: '1.25rem' },
             }}
           >
             Early Detection of Motor Weakness in Children
           </Typography>
+
+          {/* Session Status Indicator */}
+          {currentSession && (
+            <Paper
+              elevation={0}
+              sx={{
+                mb: 3,
+                p: 2,
+                bgcolor: 'success.light',
+                border: '1px solid',
+                borderColor: 'success.main',
+                borderRadius: 2,
+              }}
+            >
+              <Typography variant="body2" sx={{ fontWeight: 600, color: 'success.dark' }}>
+                ✅ Session Completed! {childProfile && `(${childProfile.childName})`}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Click "Parent Results" or "Clinician Results" to view
+              </Typography>
+            </Paper>
+          )}
 
           {/* Main Action Buttons */}
           <Box

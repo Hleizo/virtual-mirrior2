@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useMemo } from 'react';
 import {
   Box,
   Container,
@@ -26,7 +26,7 @@ import CoachOverlay from '../components/CoachOverlay';
 import SessionControls from '../components/SessionControls';
 import { useSessionStore } from '../store/session';
 import type { TaskMetric } from '../store/session';
-import { tasks, TASK_SEQUENCE } from '../logic/tasks';
+import { createTaskHandlers, TASK_SEQUENCE } from '../logic/tasks';
 import GradientLinearProgress from '../components/GradientLinearProgress';
 import type { TaskUpdate } from '../logic/tasks';
 import { cancelSpeech } from '../utils/voice';
@@ -34,6 +34,12 @@ import { cancelSpeech } from '../utils/voice';
 const SessionPageOrchestrator = () => {
   const navigate = useNavigate();
   const setCurrent = useSessionStore((state) => state.setCurrent);
+  const childProfile = useSessionStore((state) => state.childProfile);
+  
+  // Create task handlers with child height for normalization
+  const tasks = useMemo(() => {
+    return createTaskHandlers(childProfile?.heightCm);
+  }, [childProfile?.heightCm]);
   
   const videoRef = useRef<HTMLVideoElement>(null!);
   const [currentTaskIndex, setCurrentTaskIndex] = useState<number>(0);
@@ -133,7 +139,7 @@ const SessionPageOrchestrator = () => {
       showFloatingText('Almost there!');
     }
 
-    // Check if task is complete
+    // Check if task is complete - auto-advance after 900ms
     if (update.done && update.metrics) {
       const taskMetric: TaskMetric = {
         task: currentTaskName as any,
@@ -146,9 +152,8 @@ const SessionPageOrchestrator = () => {
       setShowSuccessAnimation(true);
       showFloatingText('Great job! 🎉');
       
-      // Move to next task or complete session
+      // Auto-advance to next task or complete session
       if (currentTaskIndex < TASK_SEQUENCE.length - 1) {
-        // Celebration delay before next task
         setTimeout(() => {
           setShowSuccessAnimation(false);
           const nextIndex = currentTaskIndex + 1;
@@ -157,13 +162,13 @@ const SessionPageOrchestrator = () => {
           // Start next task
           tasks[TASK_SEQUENCE[nextIndex]].start();
           setTaskUpdate(null);
-        }, 2000); // Extended to 2s for celebration
+        }, 900); // 900ms for success animation
       } else {
         // All tasks complete
         setTimeout(() => {
           setShowSuccessAnimation(false);
           completeSession([...completedTasks, taskMetric]);
-        }, 2000);
+        }, 900);
       }
     }
   }, [isRunning, currentTask, currentTaskName, currentTaskIndex, completedTasks, showFloatingMessage]);
@@ -199,15 +204,15 @@ const SessionPageOrchestrator = () => {
     
     const summary = {
       sessionId: `SESSION-${Date.now()}`,
-      childAgeYears: 8,
+      childAgeYears: childProfile?.ageYears || 8,
       startedAt: sessionStartTime,
       endedAt: new Date().toISOString(),
       overallRisk,
       tasks: allTasks,
     };
     
-    console.log('Session completed:', summary);
-    console.log('Risk factors:', {
+    console.log('✅ Session completed:', summary);
+    console.log('📊 Risk factors:', {
       oneLegHoldTime,
       shoulderFlexionMax,
       walkSymmetry,
@@ -216,6 +221,7 @@ const SessionPageOrchestrator = () => {
       poorSymmetry,
       overallRisk,
     });
+    console.log('👤 Child profile:', childProfile);
     
     setCurrent(summary);
     setIsRunning(false);
@@ -317,6 +323,37 @@ const SessionPageOrchestrator = () => {
           ))}
         </Stack>
       </Box>
+
+      {/* Current Task Progress */}
+      {isRunning && taskUpdate && (
+        <Box sx={{ mb: 2 }}>
+          <Stack spacing={1}>
+            <Stack direction="row" justifyContent="space-between" alignItems="center">
+              <Chip 
+                label={taskUpdate.message}
+                color={
+                  taskUpdate.level === 'success' ? 'success' :
+                  taskUpdate.level === 'warning' ? 'warning' :
+                  'info'
+                }
+                sx={{ fontWeight: 600 }}
+              />
+              <Typography variant="caption" color="text.secondary">
+                {Math.round(taskUpdate.progress * 100)}% Complete
+              </Typography>
+            </Stack>
+            <GradientLinearProgress 
+              value={taskUpdate.progress * 100}
+              sx={{ 
+                height: 8,
+                '& .MuiLinearProgress-bar': {
+                  borderRadius: 4,
+                }
+              }}
+            />
+          </Stack>
+        </Box>
+      )}
 
       {/* Camera and Pose Detection */}
       <Box sx={{ position: 'relative', height: '70vh', bgcolor: 'black', borderRadius: 2, overflow: 'hidden' }}>

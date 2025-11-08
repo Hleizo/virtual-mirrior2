@@ -17,6 +17,7 @@ export interface TaskUpdate {
   progress: number; // 0..1
   done?: boolean;
   metrics?: Record<string, number>;
+  voiceText?: string; // Optional Arabic voice feedback
 }
 
 interface TaskHandler {
@@ -175,16 +176,22 @@ class WalkTask implements TaskHandler {
   private lastHeelX: number | null = null;
   private movingRight: boolean = true;
   private extremaCount: number = 0;
+  private leftStepAmplitudes: number[] = [];
+  private rightStepAmplitudes: number[] = [];
+  private lastExtremaX: number | null = null;
 
   start(): void {
     this.stepCount = 0;
     this.lastHeelX = null;
     this.movingRight = true;
     this.extremaCount = 0;
+    this.leftStepAmplitudes = [];
+    this.rightStepAmplitudes = [];
+    this.lastExtremaX = null;
   }
 
   update(landmarks: any[]): TaskUpdate {
-    // Simple step detection: track left ankle x position
+    // Simple step detection: track ankle center x position
     const leftAnkle = landmarks[27]; // Left ankle
     const rightAnkle = landmarks[28]; // Right ankle
     
@@ -193,6 +200,7 @@ class WalkTask implements TaskHandler {
         message: 'Step into view',
         level: 'warning',
         progress: 0,
+        voiceText: 'امش بشكل طبيعي',
       };
     }
 
@@ -201,17 +209,33 @@ class WalkTask implements TaskHandler {
     if (this.lastHeelX !== null) {
       const delta = avgX - this.lastHeelX;
       
-      // Detect direction change (extrema)
+      // Detect direction change (extrema) - indicates a step
       if (this.movingRight && delta < -0.01) {
+        // Changed direction from right to left
         this.movingRight = false;
         this.extremaCount++;
+        
+        if (this.lastExtremaX !== null) {
+          const amplitude = Math.abs(avgX - this.lastExtremaX);
+          this.rightStepAmplitudes.push(amplitude);
+        }
+        this.lastExtremaX = avgX;
+        
         if (this.extremaCount >= 2) {
           this.stepCount++;
           this.extremaCount = 0;
         }
       } else if (!this.movingRight && delta > 0.01) {
+        // Changed direction from left to right
         this.movingRight = true;
         this.extremaCount++;
+        
+        if (this.lastExtremaX !== null) {
+          const amplitude = Math.abs(avgX - this.lastExtremaX);
+          this.leftStepAmplitudes.push(amplitude);
+        }
+        this.lastExtremaX = avgX;
+        
         if (this.extremaCount >= 2) {
           this.stepCount++;
           this.extremaCount = 0;
@@ -223,20 +247,30 @@ class WalkTask implements TaskHandler {
 
     const progress = Math.min(this.stepCount / 4, 1);
 
+    // Calculate symmetry from step amplitudes
+    let symmetryPercent = 100;
+    if (this.leftStepAmplitudes.length > 0 && this.rightStepAmplitudes.length > 0) {
+      const avgLeft = this.leftStepAmplitudes.reduce((a, b) => a + b, 0) / this.leftStepAmplitudes.length;
+      const avgRight = this.rightStepAmplitudes.reduce((a, b) => a + b, 0) / this.rightStepAmplitudes.length;
+      const asymmetry = Math.abs(avgLeft - avgRight) / Math.max(avgLeft, avgRight, 0.01);
+      symmetryPercent = Math.max(0, Math.min(100, (1 - asymmetry) * 100));
+    }
+
     if (this.stepCount >= 4) {
       return {
         message: 'Great walking!',
         level: 'success',
         progress: 1,
         done: true,
-        metrics: { stepCount: this.stepCount, symmetryPercent: 95 },
+        metrics: { stepCount: this.stepCount, symmetryPercent: Math.round(symmetryPercent) },
+        voiceText: 'ممتاز',
       };
     } else {
       return {
         message: `Walk naturally (${this.stepCount} / 4 steps)`,
         level: 'info',
         progress,
-        metrics: { stepCount: this.stepCount },
+        metrics: { stepCount: this.stepCount, symmetryPercent: Math.round(symmetryPercent) },
       };
     }
   }
@@ -244,6 +278,8 @@ class WalkTask implements TaskHandler {
   stop(): void {
     this.stepCount = 0;
     this.lastHeelX = null;
+    this.leftStepAmplitudes = [];
+    this.rightStepAmplitudes = [];
   }
 }
 
@@ -252,6 +288,11 @@ class JumpTask implements TaskHandler {
   private baselineY: number | null = null;
   private maxJumpHeight: number = 0;
   private jumpDetected: boolean = false;
+  private childHeightCm: number | null = null;
+
+  constructor(childHeightCm?: number) {
+    this.childHeightCm = childHeightCm || null;
+  }
 
   start(): void {
     this.baselineY = null;
@@ -269,6 +310,7 @@ class JumpTask implements TaskHandler {
         message: 'Step into view',
         level: 'warning',
         progress: 0,
+        voiceText: 'اقفز مرة واحدة',
       };
     }
 
@@ -296,12 +338,28 @@ class JumpTask implements TaskHandler {
 
     if (this.jumpDetected) {
       const jumpPixels = Math.round(this.maxJumpHeight * 1000);
+      
+      let metrics: Record<string, number> = { jumpHeightPixels: jumpPixels };
+      
+      // Calculate normalized jump height as percentage of child's height
+      if (this.childHeightCm && this.childHeightCm > 0) {
+        // Estimate: assume viewport height ~1.5-2x child height for standing
+        // This is approximate; for better accuracy need calibration
+        const estimatedPixelsPerCm = 1000 / (this.childHeightCm * 1.5);
+        const jumpHeightCm = jumpPixels / estimatedPixelsPerCm;
+        const jumpHeightPercent = (jumpHeightCm / this.childHeightCm) * 100;
+        
+        metrics.jumpHeightCm = Math.round(jumpHeightCm * 10) / 10; // 1 decimal
+        metrics.jumpHeightPercent = Math.round(jumpHeightPercent * 10) / 10;
+      }
+      
       return {
         message: 'Great jump!',
         level: 'success',
         progress: 1,
         done: true,
-        metrics: { jumpHeightPixels: jumpPixels },
+        metrics,
+        voiceText: 'رائع',
       };
     } else {
       const currentJumpPixels = Math.round(Math.max(jumpHeight, 0) * 1000);
@@ -321,12 +379,17 @@ class JumpTask implements TaskHandler {
 }
 
 // ============= TASK REGISTRY =============
-export const tasks: Record<string, TaskHandler> = {
-  raise_hand: new RaiseHandTask(),
-  one_leg: new OneLegTask(),
-  walk: new WalkTask(),
-  jump: new JumpTask(),
-};
+export function createTaskHandlers(childHeightCm?: number): Record<string, TaskHandler> {
+  return {
+    raise_hand: new RaiseHandTask(),
+    one_leg: new OneLegTask(),
+    walk: new WalkTask(),
+    jump: new JumpTask(childHeightCm),
+  };
+}
+
+// Default tasks for backward compatibility
+export const tasks: Record<string, TaskHandler> = createTaskHandlers();
 
 export const TASK_SEQUENCE = ['raise_hand', 'one_leg', 'walk', 'jump'] as const;
 export type TaskName = typeof TASK_SEQUENCE[number];

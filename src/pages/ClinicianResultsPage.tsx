@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Container,
@@ -42,26 +42,136 @@ import {
   Radar,
 } from 'recharts';
 import { useSessionStore } from '../store/session';
+import { gradeMetric, getLevelColor } from '../clinical/standards';
+import { computeOverallRisk, getRiskColor, getRiskLabel } from '../clinical/scoring';
+import type { TaskName } from '../store/session';
 
 const ClinicianResultsPage = () => {
   const navigate = useNavigate();
   const summary = useSessionStore((state) => state.current);
+  const childProfile = useSessionStore((state) => state.childProfile);
   const [notes, setNotes] = useState('');
+
+  // Helper to get primary metric for each task
+  const getPrimaryMetric = (taskName: TaskName, metrics: Record<string, number | string>) => {
+    switch (taskName) {
+      case 'raise_hand':
+        return { name: 'shoulderFlexion', value: (metrics.shoulderFlexionMax || metrics.symmetry || 0) as number };
+      case 'one_leg':
+        return { name: 'balanceTime', value: (metrics.balanceTime || metrics.holdTime || 0) as number };
+      case 'walk':
+        return { name: 'gaitSymmetry', value: (metrics.gaitSymmetry || metrics.symmetryPercent || 0) as number };
+      case 'jump':
+        return { name: 'jumpHeight', value: (metrics.jumpHeight || metrics.jumpHeightPixels || 0) as number };
+      default:
+        return { name: 'unknown', value: 0 };
+    }
+  };
+
+  // Compute clinical grades for all tasks
+  const clinicalGrades = useMemo(() => {
+    if (!summary) return [];
+    
+    return summary.tasks.map((task) => {
+      const taskName = task.task as TaskName;
+      const primaryMetric = getPrimaryMetric(taskName, task.metrics);
+      const grade = gradeMetric(
+        taskName,
+        primaryMetric.name,
+        primaryMetric.value,
+        childProfile?.ageYears || summary.childAgeYears
+      );
+      return { task: taskName, grade };
+    });
+  }, [summary, childProfile]);
+
+  // Compute overall risk if not already set
+  const overallRisk = useMemo(() => {
+    if (summary?.overallRisk) return summary.overallRisk;
+    const computed = computeOverallRisk(clinicalGrades);
+    return computed;
+  }, [summary, clinicalGrades]);
+
+  const handleLoadDemoData = () => {
+    console.log('Loading demo data...');
+    try {
+      const setCurrent = useSessionStore.getState().setCurrent;
+      const setChildProfile = useSessionStore.getState().setChildProfile;
+      
+      // Set demo child profile
+      setChildProfile({
+        childName: 'Demo Child',
+        ageYears: 8,
+        gender: 'Male',
+        heightCm: 130,
+        weightKg: 30,
+        notes: 'Demo data for testing',
+      });
+      
+      // Set demo session data
+      setCurrent({
+        sessionId: `DEMO-${Date.now()}`,
+        childAgeYears: 8,
+        startedAt: new Date(Date.now() - 300000).toISOString(),
+        endedAt: new Date().toISOString(),
+        overallRisk: 'normal' as const,
+        tasks: [
+          {
+            task: 'raise_hand' as TaskName,
+            metrics: { shoulderFlexionMax: 125 } as Record<string, number>,
+          },
+          {
+            task: 'one_leg' as TaskName,
+            metrics: { holdTime: 6.2, swayIndex: 0.015 } as Record<string, number>,
+          },
+          {
+            task: 'walk' as TaskName,
+            metrics: { stepCount: 4, symmetryPercent: 92 } as Record<string, number>,
+          },
+          {
+            task: 'jump' as TaskName,
+            metrics: { 
+              jumpHeightPixels: 120,
+              jumpHeightCm: 12.5,
+              jumpHeightPercent: 9.6
+            } as Record<string, number>,
+          },
+        ],
+      });
+      console.log('Demo data loaded successfully!');
+    } catch (error) {
+      console.error('Error loading demo data:', error);
+      alert('Error loading demo data: ' + error);
+    }
+  };
 
   if (!summary) {
     return (
-      <Container maxWidth="lg" sx={{ py: 4 }}>
-        <Alert severity="info">
-          No session found. Please complete a session first or load demo results.
-        </Alert>
-        <Button
-          variant="contained"
-          startIcon={<HomeIcon />}
-          onClick={() => navigate('/')}
-          sx={{ mt: 2 }}
-        >
-          Go to Home
-        </Button>
+      <Container maxWidth="lg" sx={{ py: 4, minHeight: '100vh' }}>
+        <Paper elevation={3} sx={{ p: 4, textAlign: 'center' }}>
+          <Typography variant="h5" gutterBottom color="primary">
+            No Session Data Found
+          </Typography>
+          <Alert severity="info" sx={{ mb: 3, mt: 2 }}>
+            No session found. Please complete a session first or load demo results.
+          </Alert>
+          <Stack direction="row" spacing={2} justifyContent="center">
+            <Button
+              variant="contained"
+              startIcon={<HomeIcon />}
+              onClick={() => navigate('/')}
+            >
+              Go to Home
+            </Button>
+            <Button
+              variant="contained"
+              color="success"
+              onClick={handleLoadDemoData}
+            >
+              Load Demo Data
+            </Button>
+          </Stack>
+        </Paper>
       </Container>
     );
   }
@@ -226,14 +336,16 @@ const ClinicianResultsPage = () => {
 
       {/* Risk Level */}
       <Box sx={{ mb: 3 }}>
-        <Chip
-          label={`Risk Level: ${summary.overallRisk?.toUpperCase() || 'N/A'}`}
-          color={
-            summary.overallRisk === 'normal' ? 'success' :
-            summary.overallRisk === 'monitor' ? 'warning' : 'error'
-          }
-          sx={{ fontSize: '1rem', py: 2, px: 1 }}
-        />
+        <Stack direction="row" spacing={2} alignItems="center">
+          <Chip
+            label={`Risk Level: ${overallRisk.toUpperCase()}`}
+            color={getRiskColor(overallRisk)}
+            sx={{ fontSize: '1rem', py: 2, px: 1 }}
+          />
+          <Typography variant="body2" color="text.secondary">
+            {getRiskLabel(overallRisk)}
+          </Typography>
+        </Stack>
       </Box>
 
       {/* AI Interpretation Summary */}
@@ -284,11 +396,13 @@ const ClinicianResultsPage = () => {
                 <TableCell><strong>Task</strong></TableCell>
                 <TableCell><strong>Metric</strong></TableCell>
                 <TableCell><strong>Value</strong></TableCell>
+                <TableCell><strong>Clinical Grade</strong></TableCell>
               </TableRow>
             </TableHead>
             <TableBody>
-              {summary.tasks.map((task, taskIndex) =>
-                Object.entries(task.metrics).map(([key, value], metricIndex) => (
+              {summary.tasks.map((task, taskIndex) => {
+                const clinicalGrade = clinicalGrades[taskIndex]?.grade;
+                return Object.entries(task.metrics).map(([key, value], metricIndex) => (
                   <TableRow key={`${taskIndex}-${metricIndex}`}>
                     {metricIndex === 0 && (
                       <TableCell rowSpan={Object.keys(task.metrics).length}>
@@ -299,9 +413,26 @@ const ClinicianResultsPage = () => {
                     <TableCell>
                       {typeof value === 'number' ? value.toFixed(2) : value}
                     </TableCell>
+                    {metricIndex === 0 && (
+                      <TableCell rowSpan={Object.keys(task.metrics).length}>
+                        {clinicalGrade && (
+                          <Stack spacing={0.5}>
+                            <Chip 
+                              label={clinicalGrade.level.toUpperCase()}
+                              color={getLevelColor(clinicalGrade.level)}
+                              size="small"
+                              sx={{ fontWeight: 600 }}
+                            />
+                            <Typography variant="caption" color="text.secondary">
+                              {clinicalGrade.note}
+                            </Typography>
+                          </Stack>
+                        )}
+                      </TableCell>
+                    )}
                   </TableRow>
-                ))
-              )}
+                ));
+              })}
             </TableBody>
           </Table>
         </TableContainer>

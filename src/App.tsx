@@ -2,6 +2,7 @@ import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { ThemeProvider, createTheme, CssBaseline, Box } from '@mui/material';
 import TopNav from './components/TopNav';
 import HomePage from './pages/HomePage';
+import ChildInfoPage from './pages/ChildInfoPage';
 import SessionPageOrchestrator from './pages/SessionPageOrchestrator';
 import ParentResultsPage from './pages/ParentResultsPage';
 import ClinicianResultsPage from './pages/ClinicianResultsPage';
@@ -108,6 +109,7 @@ function App() {
           <Box sx={{ flex: 1 }}>
             <Routes>
               <Route path="/" element={<HomePage />} />
+              <Route path="/child" element={<ChildInfoPage />} />
               <Route path="/session" element={<SessionPageOrchestrator />} />
               <Route path="/results/parent" element={<ParentResultsPage />} />
               <Route path="/results/clinician" element={<ClinicianResultsPage />} />

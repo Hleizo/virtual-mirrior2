@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Chip, Box, Typography, Paper } from '@mui/material';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { speak } from '../utils/voice';
 import type { TaskUpdate } from '../logic/tasks';
 import GradientLinearProgress from './GradientLinearProgress';
+import AssistantFace, { type AssistantMood } from './AssistantFace';
 
 interface CoachOverlayProps {
   taskUpdate: TaskUpdate | null;
@@ -29,20 +30,36 @@ const VOICE_MAP: Record<string, string> = {
 const CoachOverlay = ({ taskUpdate, currentTaskName, muted = false }: CoachOverlayProps) => {
   const lastSpeechTime = useRef<number>(0);
   const lastMessageLevel = useRef<string>('');
+  const [assistantMood, setAssistantMood] = useState<AssistantMood>('idle');
 
-  // Helper to speak with debouncing
-  const speakIfChanged = (level: string) => {
-    if (muted) return; // Skip if muted
+  // Helper to get mood from task level
+  const getMoodFromLevel = (level: string): AssistantMood => {
+    if (level === 'success') return 'great';
+    if (level === 'warning') return 'warn';
+    if (level === 'info' && taskUpdate?.message.includes('Almost')) return 'encourage';
+    return 'idle';
+  };
+
+  // Helper to speak with debouncing and mood changes
+  const speakIfChanged = (level: string, arabicText?: string) => {
+    if (muted) {
+      // Update mood visually even when muted
+      setAssistantMood(getMoodFromLevel(level));
+      return;
+    }
     
     const now = Date.now();
     const timeSinceLastSpeech = now - lastSpeechTime.current;
     
     // Only speak if level changed and enough time passed (1.2s debounce)
     if (level !== lastMessageLevel.current && timeSinceLastSpeech >= 1200) {
-      const arabicText = VOICE_MAP[level];
       if (arabicText) {
         lastMessageLevel.current = level;
         lastSpeechTime.current = now;
+        
+        // Update assistant mood
+        setAssistantMood(getMoodFromLevel(level));
+        
         speak(arabicText).catch(err => console.error('Speech error:', err));
       }
     }
@@ -172,11 +189,27 @@ const CoachOverlay = ({ taskUpdate, currentTaskName, muted = false }: CoachOverl
   // Trigger voice feedback when level changes
   useEffect(() => {
     if (taskUpdate) {
-      // Create a unique level key based on message + level
-      const levelKey = `${taskUpdate.level}-${taskUpdate.message.substring(0, 10)}`;
-      speakIfChanged(levelKey);
+      // Map task update to voice key
+      let voiceKey = '';
+      
+      if (taskUpdate.level === 'success') {
+        voiceKey = currentTaskName === 'raise_hand' ? 'raise-success' :
+                   currentTaskName === 'one_leg' ? 'oneleg-success' :
+                   currentTaskName === 'walk' ? 'walk-success' :
+                   currentTaskName === 'jump' ? 'jump-success' : '';
+      } else if (taskUpdate.level === 'warning') {
+        voiceKey = currentTaskName === 'raise_hand' ? 'raise-low' :
+                   currentTaskName === 'one_leg' ? 'oneleg-sway' : '';
+      } else if (taskUpdate.level === 'info') {
+        if (taskUpdate.message.includes('Almost') || taskUpdate.message.includes('قربت')) {
+          voiceKey = 'raise-almost';
+        }
+      }
+      
+      const arabicText = VOICE_MAP[voiceKey];
+      speakIfChanged(taskUpdate.level, arabicText);
     }
-  }, [taskUpdate?.level, taskUpdate?.message]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [taskUpdate?.level, taskUpdate?.message, currentTaskName]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!taskUpdate) {
     return null;
@@ -188,6 +221,18 @@ const CoachOverlay = ({ taskUpdate, currentTaskName, muted = false }: CoachOverl
     <>
       {/* Task-Specific HUD (bottom-right) */}
       {renderHUD()}
+
+      {/* Assistant Face (top-left) */}
+      <Box
+        sx={{
+          position: 'fixed',
+          top: 80,
+          left: 20,
+          zIndex: 1001,
+        }}
+      >
+        <AssistantFace mood={assistantMood} size={100} />
+      </Box>
 
       {/* Bottom Progress Bar */}
       <Box

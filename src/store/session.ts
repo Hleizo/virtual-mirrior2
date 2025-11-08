@@ -17,16 +17,31 @@ export type SessionSummary = {
   tasks: TaskMetric[];
 };
 
+export type ChildProfile = {
+  childName: string;
+  ageYears: number;
+  gender?: string;
+  heightCm?: number;
+  weightKg?: number;
+  notes?: string;
+};
+
 interface SessionStore {
   current: SessionSummary | null;
+  childProfile: ChildProfile | null;
   setCurrent: (summary: SessionSummary) => void;
+  setChildProfile: (profile: ChildProfile) => void;
   getCurrent: () => SessionSummary | null;
+  getChildProfile: () => ChildProfile | null;
   clear: () => void;
 }
 
 export const useSessionStore = create<SessionStore>((set, get) => ({
   current: null,
+  childProfile: null,
   setCurrent: (summary) => set({ current: summary }),
+  setChildProfile: (profile) => set({ childProfile: profile }),
   getCurrent: () => get().current,
-  clear: () => set({ current: null }),
+  getChildProfile: () => get().childProfile,
+  clear: () => set({ current: null, childProfile: null }),
 }));

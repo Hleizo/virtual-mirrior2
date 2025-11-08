@@ -13,6 +13,9 @@ const TopNav = () => {
           <Button color="inherit" component={Link} to="/">
             Home
           </Button>
+          <Button color="inherit" component={Link} to="/child">
+            Child Info
+          </Button>
           <Button color="inherit" component={Link} to="/session">
             Session
           </Button>

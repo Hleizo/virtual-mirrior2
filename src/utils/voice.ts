@@ -4,6 +4,8 @@
  */
 
 let currentUtterance: SpeechSynthesisUtterance | null = null;
+let lastSpeakTime = 0;
+const DEBOUNCE_MS = 1200; // Minimum 1.2s between speech calls
 
 interface SpeakOptions {
   lang?: string;
@@ -25,6 +27,13 @@ export async function speak(
     console.warn('Speech synthesis not supported in this browser');
     return;
   }
+
+  // Debounce: prevent speaking more than once every 1.2s
+  const now = Date.now();
+  if (now - lastSpeakTime < DEBOUNCE_MS) {
+    return; // Skip this call, too soon after last speech
+  }
+  lastSpeakTime = now;
 
   const synthesis = window.speechSynthesis;
 

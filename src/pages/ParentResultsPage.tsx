@@ -10,49 +10,92 @@ import {
   Stack,
   Alert,
   Chip,
-  Divider,
-  Menu,
-  MenuItem,
-  ListItemIcon,
-  ListItemText,
 } from '@mui/material';
 import {
   CheckCircle as CheckCircleIcon,
-  Warning as WarningIcon,
-  Error as ErrorIcon,
   Home as HomeIcon,
-  Share as ShareIcon,
-  Image as ImageIcon,
-  PictureAsPdf as PdfIcon,
-  TipsAndUpdates as TipsIcon,
+  Download as DownloadIcon,
 } from '@mui/icons-material';
-import { useState } from 'react';
+import { useMemo, useRef } from 'react';
+import { RadialBarChart, RadialBar, PolarAngleAxis, ResponsiveContainer } from 'recharts';
+import html2canvas from 'html2canvas';
 import { useSessionStore } from '../store/session';
-import GradientLinearProgress from '../components/GradientLinearProgress';
+import { gradeMetric, getLevelColor } from '../clinical/standards';
+import type { TaskName } from '../store/session';
 
 const ParentResultsPage = () => {
   const navigate = useNavigate();
   const summary = useSessionStore((state) => state.current);
-  const [shareMenuAnchor, setShareMenuAnchor] = useState<null | HTMLElement>(null);
+  const childProfile = useSessionStore((state) => state.childProfile);
+  const contentRef = useRef<HTMLDivElement>(null);
 
-  const handleShareClick = (event: React.MouseEvent<HTMLButtonElement>) => {
-    setShareMenuAnchor(event.currentTarget);
+  // Helper: get primary metric for a task
+  const getPrimaryMetric = (taskName: TaskName, metrics: Record<string, number | string>) => {
+    switch (taskName) {
+      case 'raise_hand':
+        return { name: 'Shoulder Flexion', value: metrics.shoulderFlexionMax ?? 0 };
+      case 'one_leg':
+        return { name: 'Hold Time', value: metrics.holdTime ?? 0 };
+      case 'walk':
+        return { name: 'Gait Symmetry', value: metrics.symmetryPercent ?? 0 };
+      case 'jump':
+        return { name: 'Jump Height', value: metrics.jumpHeightPercent ?? 0 };
+      default:
+        return { name: 'Unknown', value: 0 };
+    }
   };
 
-  const handleShareClose = () => {
-    setShareMenuAnchor(null);
+  // Clinical grades for each task
+  const clinicalGrades = useMemo(() => {
+    if (!summary) return [];
+    return summary.tasks.map((t) => {
+      const primary = getPrimaryMetric(t.task, t.metrics);
+      const grade = gradeMetric(t.task, primary.name, primary.value as number, summary.childAgeYears);
+      return { taskName: t.task, ...grade };
+    });
+  }, [summary]);
+
+  // Overall score (0-100) from clinical grades
+  const overallScore = useMemo(() => {
+    if (clinicalGrades.length === 0) return 0;
+    const scoreMap = { normal: 100, borderline: 70, abnormal: 30 };
+    const total = clinicalGrades.reduce((sum, g) => sum + scoreMap[g.level], 0);
+    return Math.round(total / clinicalGrades.length);
+  }, [clinicalGrades]);
+
+  // Get tip based on grade level
+  const getTip = (level: 'normal' | 'borderline' | 'abnormal', taskName: TaskName): string => {
+    if (level === 'normal') {
+      return 'Keep practicing healthy movement! Your child is doing well.';
+    } else if (level === 'borderline') {
+      const taskTips: Record<TaskName, string> = {
+        raise_hand: 'Practice reaching overhead with both arms during play for 5–10 minutes daily.',
+        one_leg: 'Practice standing on one leg for 5 seconds daily—try balance games like flamingo pose.',
+        walk: 'Encourage walking on different surfaces (grass, sand) to improve gait symmetry.',
+        jump: 'Practice jumping activities like hopscotch or jump rope for 10 minutes daily.',
+      };
+      return taskTips[taskName] || 'Continue practicing this movement pattern regularly.';
+    } else {
+      return 'Consider consulting a pediatric physiotherapist for personalized guidance.';
+    }
   };
 
-  const handleDownloadImage = () => {
-    // TODO: Implement screenshot/image generation
-    alert('Image download will be implemented soon!');
-    handleShareClose();
-  };
-
-  const handleDownloadPDF = () => {
-    // TODO: Implement PDF generation
-    alert('PDF download will be implemented soon!');
-    handleShareClose();
+  // Download results as PNG
+  const handleDownloadPNG = async () => {
+    if (!contentRef.current) return;
+    try {
+      const canvas = await html2canvas(contentRef.current, {
+        backgroundColor: '#ffffff',
+        scale: 2,
+      });
+      const link = document.createElement('a');
+      link.download = `${childProfile?.childName || 'Child'}-Results.png`;
+      link.href = canvas.toDataURL();
+      link.click();
+    } catch (error) {
+      console.error('Failed to generate PNG:', error);
+      alert('Failed to download image. Please try again.');
+    }
   };
 
   if (!summary) {
@@ -73,191 +116,69 @@ const ParentResultsPage = () => {
     );
   }
 
-  const getRiskMessage = () => {
-    switch (summary.overallRisk) {
-      case 'normal':
-        return {
-          message: 'Looks good! Your child shows typical motor development.',
-          color: 'success' as const,
-          icon: <CheckCircleIcon />,
-        };
-      case 'monitor':
-        return {
-          message: 'Some values are borderline — consider rechecking in a few weeks.',
-          color: 'warning' as const,
-          icon: <WarningIcon />,
-        };
-      case 'high':
-        return {
-          message: 'Consider seeing a pediatric physiotherapist for evaluation.',
-          color: 'error' as const,
-          icon: <ErrorIcon />,
-        };
-      default:
-        return {
-          message: 'Assessment complete.',
-          color: 'info' as const,
-          icon: <CheckCircleIcon />,
-        };
-    }
-  };
-
-  const riskInfo = getRiskMessage();
-
-  const getTaskMessage = (taskName: string) => {
-    switch (taskName) {
-      case 'raise_hand':
-        return 'Arm movements look coordinated and symmetrical.';
-      case 'one_leg':
-        return 'Balance is developing appropriately for their age.';
-      case 'walk':
-        return 'Walking pattern appears smooth and coordinated.';
-      case 'jump':
-        return 'Jumping and landing show good coordination.';
-      default:
-        return 'Task completed successfully.';
-    }
-  };
-
-  const getTaskPerformance = (taskName: string, metrics: Record<string, number | string>) => {
-    let score = 100;
-    let color: 'success' | 'warning' | 'error' = 'success';
-
-    switch (taskName) {
-      case 'raise_hand':
-        const shoulderFlexion = metrics.shoulderFlexionMax as number;
-        if (shoulderFlexion >= 120) {
-          score = 100;
-          color = 'success';
-        } else if (shoulderFlexion >= 90) {
-          score = 70;
-          color = 'warning';
-        } else {
-          score = 40;
-          color = 'error';
-        }
-        break;
-      case 'one_leg':
-        const holdTime = metrics.holdTime as number;
-        if (holdTime >= 5) {
-          score = 100;
-          color = 'success';
-        } else if (holdTime >= 3) {
-          score = 60;
-          color = 'warning';
-        } else {
-          score = 30;
-          color = 'error';
-        }
-        break;
-      case 'walk':
-        const symmetry = metrics.symmetryPercent as number;
-        if (symmetry >= 80) {
-          score = 100;
-          color = 'success';
-        } else if (symmetry >= 60) {
-          score = 70;
-          color = 'warning';
-        } else {
-          score = 40;
-          color = 'error';
-        }
-        break;
-      case 'jump':
-        const jumpHeight = metrics.jumpHeightPixels as number;
-        if (jumpHeight >= 80) {
-          score = 100;
-          color = 'success';
-        } else if (jumpHeight >= 40) {
-          score = 70;
-          color = 'warning';
-        } else {
-          score = 50;
-          color = 'error';
-        }
-        break;
-    }
-
-    return { score, color };
-  };
-
-  const getTaskSuggestions = (taskName: string, metrics: Record<string, number | string>) => {
-    const suggestions: string[] = [];
-
-    switch (taskName) {
-      case 'raise_hand':
-        const shoulderFlexion = metrics.shoulderFlexionMax as number;
-        if (shoulderFlexion < 120) {
-          suggestions.push('Practice reaching overhead with both arms during play.');
-          suggestions.push('Try wall angels or shoulder stretches daily.');
-        } else {
-          suggestions.push('Keep up the great shoulder mobility!');
-        }
-        break;
-      case 'one_leg':
-        const holdTime = metrics.holdTime as number;
-        if (holdTime < 5) {
-          suggestions.push('Practice standing on one leg for 5 seconds daily.');
-          suggestions.push('Try balance games like flamingo pose during teeth brushing.');
-        } else {
-          suggestions.push('Excellent balance! Try more challenging activities.');
-        }
-        break;
-      case 'walk':
-        const symmetry = metrics.symmetryPercent as number;
-        if (symmetry < 80) {
-          suggestions.push('Encourage regular walking and outdoor play.');
-          suggestions.push('Practice walking heel-to-toe in a straight line.');
-        } else {
-          suggestions.push('Walking pattern looks great!');
-        }
-        break;
-      case 'jump':
-        const jumpHeight = metrics.jumpHeightPixels as number;
-        if (jumpHeight < 80) {
-          suggestions.push('Practice jumping on soft surfaces like grass or mats.');
-          suggestions.push('Play hopscotch or jumping games to build leg strength.');
-        } else {
-          suggestions.push('Great jumping ability!');
-        }
-        break;
-    }
-
-    return suggestions;
-  };
-
   return (
     <Container maxWidth="md" sx={{ py: 4 }}>
-      {/* Header */}
-      <Typography variant="h4" component="h1" gutterBottom fontWeight={600}>
-        Assessment Results
-      </Typography>
-      <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-        Session completed on {new Date(summary.startedAt).toLocaleDateString()}
-        {summary.childAgeYears && ` • Child age: ${summary.childAgeYears} years`}
-      </Typography>
+      <div ref={contentRef}>
+        {/* Header */}
+        <Typography variant="h4" component="h1" gutterBottom fontWeight={600}>
+          Assessment Results
+        </Typography>
+        <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
+          Session completed on {new Date(summary.startedAt).toLocaleDateString()}
+          {childProfile?.childName && ` • ${childProfile.childName}`}
+          {summary.childAgeYears && ` • Age: ${summary.childAgeYears} years`}
+        </Typography>
 
-      {/* Overall Risk Banner */}
-      <Paper
-        elevation={3}
-        sx={{
-          p: 3,
-          mb: 3,
-          bgcolor: riskInfo.color === 'success' ? 'success.light' : 
-                   riskInfo.color === 'warning' ? 'warning.light' : 'error.light',
-          borderRadius: 2,
-        }}
-      >
-        <Stack direction="row" spacing={2} alignItems="center">
-          <Box sx={{ fontSize: '2rem' }}>{riskInfo.icon}</Box>
-          <Box>
-            <Typography variant="h6" fontWeight={600}>
-              Overall Assessment
-            </Typography>
-            <Typography variant="body1">{riskInfo.message}</Typography>
+        {/* Overall Score Donut Chart */}
+        <Paper elevation={2} sx={{ p: 3, mb: 3, bgcolor: 'background.paper' }}>
+          <Typography variant="h6" fontWeight={600} gutterBottom>
+            Overall Score
+          </Typography>
+          <Box sx={{ width: '100%', height: 250, position: 'relative' }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <RadialBarChart 
+                cx="50%" 
+                cy="50%" 
+                innerRadius="60%" 
+                outerRadius="90%" 
+                data={[{ score: overallScore }]}
+                startAngle={90}
+                endAngle={-270}
+              >
+                <PolarAngleAxis type="number" domain={[0, 100]} angleAxisId={0} tick={false} />
+                <RadialBar
+                  background
+                  dataKey="score"
+                  cornerRadius={10}
+                  fill={overallScore >= 85 ? '#4caf50' : overallScore >= 65 ? '#ff9800' : '#f44336'}
+                />
+              </RadialBarChart>
+            </ResponsiveContainer>
+            <Box
+              sx={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                textAlign: 'center',
+              }}
+            >
+              <Typography variant="h2" fontWeight={700}>
+                {overallScore}
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                out of 100
+              </Typography>
+            </Box>
           </Box>
-        </Stack>
-      </Paper>
+          <Typography variant="body2" color="text.secondary" textAlign="center" sx={{ mt: 1 }}>
+            {overallScore >= 85 
+              ? '🎉 Excellent! Your child shows healthy motor development.'
+              : overallScore >= 65 
+              ? '⚠️ Some areas may benefit from practice and monitoring.'
+              : '⚠️ Consider consulting a pediatric physiotherapist for guidance.'}
+          </Typography>
+        </Paper>
 
       {/* Task Cards */}
       <Typography variant="h6" gutterBottom fontWeight={600}>
@@ -265,16 +186,19 @@ const ParentResultsPage = () => {
       </Typography>
       <Stack spacing={3} sx={{ mb: 3 }}>
         {summary.tasks.map((task, index) => {
-          const performance = getTaskPerformance(task.task, task.metrics);
-          const suggestions = getTaskSuggestions(task.task, task.metrics);
+          const grade = clinicalGrades.find(g => g.taskName === task.task);
+          if (!grade) return null;
+          
+          const tip = getTip(grade.level, task.task);
+          const color = getLevelColor(grade.level);
 
           return (
-            <Card key={index} variant="outlined" sx={{ overflow: 'visible' }}>
+            <Card key={index} variant="outlined">
               <CardContent>
                 {/* Task Header */}
                 <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
                   <CheckCircleIcon 
-                    color={performance.color} 
+                    color={color} 
                     sx={{ fontSize: '2.5rem' }} 
                   />
                   <Box sx={{ flex: 1 }}>
@@ -282,93 +206,38 @@ const ParentResultsPage = () => {
                       {task.task.replace('_', ' ').toUpperCase()}
                     </Typography>
                     <Typography variant="body2" color="text.secondary">
-                      {getTaskMessage(task.task)}
+                      {grade.note}
                     </Typography>
                   </Box>
                   <Chip 
-                    label={`${performance.score}%`}
-                    color={performance.color}
-                    sx={{ fontWeight: 700, fontSize: '1rem', px: 1 }}
+                    label={grade.level}
+                    color={color}
+                    sx={{ fontWeight: 600, textTransform: 'capitalize' }}
                   />
                 </Stack>
 
-                {/* Performance Bar */}
-                <Box sx={{ mb: 2 }}>
-                  <Stack direction="row" justifyContent="space-between" alignItems="center" sx={{ mb: 0.5 }}>
-                    <Typography variant="caption" fontWeight={600}>
-                      Performance
-                    </Typography>
-                    <Typography variant="caption" color="text.secondary">
-                      {performance.score >= 90 ? 'Excellent' : 
-                       performance.score >= 70 ? 'Good' : 
-                       performance.score >= 50 ? 'Fair' : 'Needs Attention'}
-                    </Typography>
-                  </Stack>
-                  <GradientLinearProgress 
-                    value={performance.score}
-                  />
-                </Box>
-
-                {/* Flags */}
-                {task.flags && task.flags.length > 0 && (
-                  <Box sx={{ mb: 2 }}>
-                    {task.flags.map((flag, i) => (
-                      <Chip
-                        key={i}
-                        label={flag}
-                        size="small"
-                        color="warning"
-                        sx={{ mr: 1, mb: 1 }}
-                      />
-                    ))}
-                  </Box>
-                )}
-
-                {/* Divider */}
-                <Divider sx={{ my: 2 }} />
-
-                {/* Suggestions */}
-                <Box>
-                  <Stack direction="row" spacing={1} alignItems="center" sx={{ mb: 1 }}>
-                    <TipsIcon fontSize="small" color="primary" />
-                    <Typography variant="subtitle2" fontWeight={600} color="primary.main">
-                      Tips for Improvement
-                    </Typography>
-                  </Stack>
-                  <Stack spacing={0.5}>
-                    {suggestions.map((suggestion, i) => (
-                      <Typography 
-                        key={i} 
-                        variant="body2" 
-                        color="text.secondary"
-                        sx={{ 
-                          pl: 2,
-                          '&::before': {
-                            content: '"• "',
-                            fontWeight: 600,
-                          }
-                        }}
-                      >
-                        {suggestion}
-                      </Typography>
-                    ))}
-                  </Stack>
-                </Box>
+                {/* Tip Alert */}
+                <Alert severity={color} sx={{ mt: 2 }}>
+                  <Typography variant="body2">
+                    <strong>Tip:</strong> {tip}
+                  </Typography>
+                </Alert>
               </CardContent>
             </Card>
           );
         })}
       </Stack>
+      </div>
 
       {/* Actions */}
-      <Stack direction="row" spacing={2} flexWrap="wrap">
+      <Stack direction="row" spacing={2} flexWrap="wrap" sx={{ mt: 3 }}>
         <Button
           variant="contained"
-          startIcon={<ShareIcon />}
-          onClick={handleShareClick}
+          startIcon={<DownloadIcon />}
+          onClick={handleDownloadPNG}
           sx={{ flex: 1, minWidth: '200px' }}
         >
-          Share Results
+          Download Results
         </Button>
         <Button
           variant="outlined"
@@ -379,34 +248,6 @@ const ParentResultsPage = () => {
           Back to Home
         </Button>
       </Stack>
-
-      {/* Share Menu */}
-      <Menu
-        anchorEl={shareMenuAnchor}
-        open={Boolean(shareMenuAnchor)}
-        onClose={handleShareClose}
-        anchorOrigin={{
-          vertical: 'top',
-          horizontal: 'center',
-        }}
-        transformOrigin={{
-          vertical: 'bottom',
-          horizontal: 'center',
-        }}
-      >
-        <MenuItem onClick={handleDownloadImage}>
-          <ListItemIcon>
-            <ImageIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Download as Image</ListItemText>
-        </MenuItem>
-        <MenuItem onClick={handleDownloadPDF}>
-          <ListItemIcon>
-            <PdfIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Download as PDF</ListItemText>
-        </MenuItem>
-      </Menu>
     </Container>
   );
 };
