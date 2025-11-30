@@ -60,37 +60,46 @@ const ChildInfoPage = () => {
 
     // Save to store and navigate
     setChildProfile(formData);
-    navigate('/session');
+    navigate('/parent/session');
   };
 
   return (
-    <Container maxWidth="md" sx={{ py: 6 }}>
-      <Paper elevation={3} sx={{ p: 4 }}>
+    <Container maxWidth="md" sx={{ py: 8 }}>
+      <Paper elevation={0} sx={{ p: 5, borderRadius: 3, border: '1px solid', borderColor: 'divider', boxShadow: '0 8px 32px rgba(0,0,0,0.08)' }}>
         {/* Header */}
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 4 }}>
-          <PersonIcon sx={{ fontSize: 40, color: 'primary.main', mr: 2 }} />
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 5, pb: 3, borderBottom: '2px solid', borderColor: 'divider' }}>
+          <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'primary.50', display: 'flex', alignItems: 'center', mr: 2 }}>
+            <PersonIcon sx={{ fontSize: 36, color: 'primary.main' }} />
+          </Box>
           <Box>
-            <Typography variant="h4" component="h1" fontWeight={600}>
+            <Typography variant="h4" component="h1" fontWeight={700} sx={{ mb: 0.5, color: 'text.primary' }}>
               Child Information
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 400 }}>
               Please provide basic information before starting the assessment
             </Typography>
           </Box>
         </Box>
 
         {/* Form */}
-        <Stack spacing={3}>
+        <Stack spacing={3.5}>
           {/* Child Name - Required */}
           <TextField
             fullWidth
             required
             label="Child Name"
-            placeholder="Enter child's name"
+            placeholder="Enter child's full name"
             value={formData.childName}
             onChange={(e) => handleChange('childName', e.target.value)}
             error={errors.childName}
             helperText={errors.childName ? 'Child name is required' : ''}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                '&:hover fieldset': {
+                  borderColor: 'primary.main',
+                },
+              },
+            }}
           />
 
           {/* Age - Required */}
@@ -103,10 +112,17 @@ const ChildInfoPage = () => {
             value={formData.ageYears || ''}
             onChange={(e) => handleChange('ageYears', parseInt(e.target.value) || 0)}
             error={errors.ageYears}
-            helperText={errors.ageYears ? 'Valid age is required' : ''}
+            helperText={errors.ageYears ? 'Valid age is required (1-18 years)' : 'Typical age range: 1-18 years'}
             inputProps={{ min: 1, max: 18 }}
             InputProps={{
               endAdornment: <InputAdornment position="end">years</InputAdornment>,
+            }}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                '&:hover fieldset': {
+                  borderColor: 'primary.main',
+                },
+              },
             }}
           />
 
@@ -117,8 +133,14 @@ const ChildInfoPage = () => {
               value={formData.gender || ''}
               label="Gender (Optional)"
               onChange={(e) => handleChange('gender', e.target.value)}
+              sx={{
+                '&:hover .MuiOutlinedInput-notchedOutline': {
+                  borderColor: 'primary.main',
+                },
+              }}
             >
               <MenuItem value="">
+                <em>Prefer not to say</em>
               </MenuItem>
               <MenuItem value="male">Male</MenuItem>
               <MenuItem value="female">Female</MenuItem>
@@ -137,6 +159,13 @@ const ChildInfoPage = () => {
             InputProps={{
               endAdornment: <InputAdornment position="end">cm</InputAdornment>,
             }}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                '&:hover fieldset': {
+                  borderColor: 'primary.main',
+                },
+              },
+            }}
           />
 
           {/* Weight - Optional */}
@@ -151,26 +180,50 @@ const ChildInfoPage = () => {
             InputProps={{
               endAdornment: <InputAdornment position="end">kg</InputAdornment>,
             }}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                '&:hover fieldset': {
+                  borderColor: 'primary.main',
+                },
+              },
+            }}
           />
 
           {/* Notes - Optional */}
           <TextField
             fullWidth
             label="Notes (Optional)"
-            placeholder="Any additional information or concerns..."
+            placeholder="Any additional information, medical history, or concerns..."
             value={formData.notes || ''}
             onChange={(e) => handleChange('notes', e.target.value)}
             multiline
-            rows={3}
+            rows={4}
+            sx={{
+              '& .MuiOutlinedInput-root': {
+                '&:hover fieldset': {
+                  borderColor: 'primary.main',
+                },
+              },
+            }}
           />
 
           {/* Action Buttons */}
-          <Box sx={{ display: 'flex', gap: 2, pt: 2 }}>
+          <Box sx={{ display: 'flex', gap: 2, pt: 3, mt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
             <Button
               variant="outlined"
               size="large"
               onClick={() => navigate('/')}
-              sx={{ flex: 1 }}
+              sx={{ 
+                flex: 1, 
+                textTransform: 'none', 
+                fontWeight: 600, 
+                py: 1.5,
+                borderWidth: '1.5px',
+                '&:hover': {
+                  borderWidth: '1.5px',
+                  bgcolor: 'rgba(25, 118, 210, 0.04)'
+                }
+              }}
             >
               Cancel
             </Button>
@@ -179,7 +232,18 @@ const ChildInfoPage = () => {
               size="large"
               endIcon={<ArrowForwardIcon />}
               onClick={handleSubmit}
-              sx={{ flex: 1 }}
+              sx={{ 
+                flex: 1, 
+                textTransform: 'none', 
+                fontWeight: 600, 
+                py: 1.5,
+                boxShadow: '0 4px 12px rgba(25, 118, 210, 0.25)',
+                '&:hover': {
+                  boxShadow: '0 6px 16px rgba(25, 118, 210, 0.35)',
+                  transform: 'translateY(-1px)',
+                  transition: 'all 0.2s ease'
+                }
+              }}
             >
               Continue to Session
             </Button>

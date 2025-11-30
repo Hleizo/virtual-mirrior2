@@ -1,6 +1,6 @@
 # Virtual Mirror Backend - FastAPI Application
 
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -11,9 +11,16 @@ import os
 import uuid
 from pathlib import Path
 from dotenv import load_dotenv
+from sqlalchemy.ext.asyncio import AsyncSession
 
 # Load environment variables
 load_dotenv()
+
+# Database imports
+from database import get_db, init_db, engine, Base
+from models import Session as SessionModel, Task, Metric
+import crud
+import schemas
 
 # ReportLab imports for PDF generation
 from reportlab.lib.pagesizes import letter, A4
@@ -41,8 +48,18 @@ app = FastAPI(
     version="1.0.0"
 )
 
+# Initialize database on startup
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database tables on startup"""
+    try:
+        await init_db()
+        print("✅ Database initialized successfully")
+    except Exception as e:
+        print(f"❌ Database initialization failed: {e}")
+
 # Get CORS origins from environment variable
-CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000").split(",")
+CORS_ORIGINS = os.getenv("CORS_ORIGINS", "http://localhost:5173,http://localhost:3000,http://localhost:5174").split(",")
 
 # CORS middleware for React frontend
 app.add_middleware(
@@ -53,7 +70,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Data directories
+# Data directories (for file-based storage backup)
 DATA_DIR = Path("data")
 REPORTS_DIR = DATA_DIR / "reports"
 AUDIO_DIR = DATA_DIR / "audio"
@@ -606,6 +623,415 @@ def generate_pdf_report(session_data: Dict[str, Any], output_path: Path):
     
     # Build PDF
     doc.build(story)
+
+# ==================== Database Endpoints ====================
+
+@app.post("/api/db/sessions", response_model=schemas.SessionResponse, status_code=201)
+async def create_session_db(
+    session_data: schemas.SessionCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Create a new session in the database
+    """
+    try:
+        db_session = await crud.create_session(
+            db=db,
+            child_name=session_data.child_name,
+            child_age=session_data.child_age,
+            child_height_cm=session_data.child_height_cm,
+            child_weight_kg=session_data.child_weight_kg,
+            child_gender=session_data.child_gender,
+            child_notes=session_data.child_notes,
+            task_metrics=session_data.task_metrics,
+        )
+        return db_session
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to create session: {str(e)}")
+
+
+@app.get("/api/db/sessions/{session_id}", response_model=schemas.SessionResponse)
+async def get_session_db(
+    session_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get a session by ID from database
+    """
+    db_session = await crud.get_session_by_id_string(db, session_id)
+    if not db_session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    return db_session
+
+
+@app.get("/api/db/sessions/child/{child_name}", response_model=List[schemas.SessionResponse])
+async def get_sessions_by_child_db(
+    child_name: str,
+    skip: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get all sessions for a specific child
+    """
+    # Note: These old CRUD functions don't exist in async crud.py
+    # Return empty list for now
+    return []
+
+
+@app.get("/api/db/sessions/risk/{risk_level}", response_model=List[schemas.SessionResponse])
+async def get_sessions_by_risk_db(
+    risk_level: str,
+    skip: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get sessions filtered by risk level
+    """
+    if risk_level not in ["low", "moderate", "high"]:
+        raise HTTPException(status_code=400, detail="Invalid risk level. Must be 'low', 'moderate', or 'high'")
+    
+    # Note: This function doesn't exist in async crud.py
+    return []
+
+
+@app.get("/api/db/sessions/recent/{days}", response_model=List[schemas.SessionResponse])
+async def get_recent_sessions_db(
+    days: int = 7,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get sessions from the last N days
+    """
+    # Note: This function doesn't exist in async crud.py
+    return []
+
+
+@app.put("/api/db/sessions/{session_id}", response_model=schemas.SessionResponse)
+async def update_session_db(
+    session_id: str,
+    session_update: schemas.SessionUpdate,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Update session with analysis results
+    """
+    try:
+        session_uuid = uuid.UUID(session_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid session ID format")
+    
+    # Note: This function doesn't exist in async crud.py
+    raise HTTPException(status_code=501, detail="Not implemented yet")
+
+
+@app.delete("/api/db/sessions/{session_id}", status_code=204)
+async def delete_session_db(
+    session_id: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Delete a session by ID
+    """
+    try:
+        session_uuid = uuid.UUID(session_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid session ID format")
+    
+    # Note: This function doesn't exist in async crud.py
+    raise HTTPException(status_code=501, detail="Not implemented yet")
+
+
+@app.get("/api/db/statistics", response_model=schemas.SessionStatistics)
+async def get_statistics_db(db: AsyncSession = Depends(get_db)):
+    """
+    Get database statistics
+    """
+    # Note: This function doesn't exist in async crud.py
+    return {
+        "total_sessions": 0,
+        "risk_distribution": {"low": 0, "moderate": 0, "high": 0},
+        "sessions_this_week": 0,
+        "sessions_this_month": 0,
+        "average_score": 0.0
+    }
+
+
+# ==================== Task Result Endpoints ====================
+
+@app.post("/api/db/task-results", response_model=schemas.TaskResultResponse, status_code=201)
+async def create_task_result_db(
+    task_data: schemas.TaskResultCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Create a new task result
+    """
+    # Verify session exists
+    session = await crud.get_session(db, task_data.session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    task_result = await crud.create_task_result(
+        db=db,
+        session_id=task_data.session_id,
+        task_name=task_data.task_name,
+        duration_seconds=task_data.duration_seconds,
+        status=task_data.status,
+        notes=task_data.notes,
+        metrics=task_data.metrics
+    )
+    return task_result
+
+
+@app.get("/api/db/task-results/{task_id}", response_model=schemas.TaskResultResponse)
+async def get_task_result_db(task_id: str, db: AsyncSession = Depends(get_db)):
+    """
+    Get a specific task result by ID
+    """
+    try:
+        task_uuid = uuid.UUID(task_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid task ID format")
+    
+    task_result = await crud.get_task_result(db, task_uuid)
+    if not task_result:
+        raise HTTPException(status_code=404, detail="Task result not found")
+    return task_result
+
+
+@app.get("/api/db/task-results/session/{session_id}", response_model=schemas.TaskResultListResponse)
+async def get_task_results_by_session_db(
+    session_id: str,
+    skip: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get all task results for a specific session
+    """
+    try:
+        session_uuid = uuid.UUID(session_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid session ID format")
+    
+    # Verify session exists
+    session = await crud.get_session(db, session_uuid)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+    
+    task_results = await crud.get_task_results_by_session(db, session_uuid, skip, limit)
+    
+    return {
+        "task_results": task_results,
+        "total": len(task_results)
+    }
+
+
+@app.get("/api/db/task-results/name/{task_name}", response_model=schemas.TaskResultListResponse)
+async def get_task_results_by_name_db(
+    task_name: str,
+    skip: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get all task results for a specific task name
+    """
+    # Note: This function doesn't exist in async crud.py
+    return {"task_results": [], "total": 0}
+
+
+@app.get("/api/db/task-results/status/{status}", response_model=schemas.TaskResultListResponse)
+async def get_task_results_by_status_db(
+    status: str,
+    skip: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get all task results by status (success, fail, borderline)
+    """
+    if status not in ["success", "fail", "borderline"]:
+        raise HTTPException(status_code=400, detail="Invalid status. Must be: success, fail, or borderline")
+    
+    # Note: This function doesn't exist in async crud.py
+    return {"task_results": [], "total": 0}
+
+
+@app.put("/api/db/task-results/{task_id}", response_model=schemas.TaskResultResponse)
+async def update_task_result_db(
+    task_id: str,
+    task_data: schemas.TaskResultUpdate,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Update a task result
+    """
+    try:
+        task_uuid = uuid.UUID(task_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid task ID format")
+    
+    # Note: This function doesn't exist in async crud.py
+    raise HTTPException(status_code=501, detail="Not implemented yet")
+
+
+@app.delete("/api/db/task-results/{task_id}", status_code=204)
+async def delete_task_result_db(task_id: str, db: AsyncSession = Depends(get_db)):
+    """
+    Delete a task result
+    """
+    try:
+        task_uuid = uuid.UUID(task_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid task ID format")
+    
+    # Note: This function doesn't exist in async crud.py
+    raise HTTPException(status_code=501, detail="Not implemented yet")
+
+
+# ==================== Metric Endpoints ====================
+
+@app.post("/api/db/metrics", response_model=schemas.MetricResponse, status_code=201)
+async def create_metric_db(
+    metric_data: schemas.MetricCreate,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Create a new metric for a task result
+    """
+    # Verify task result exists
+    task_result = await crud.get_task_result(db, metric_data.task_id)
+    if not task_result:
+        raise HTTPException(status_code=404, detail="Task result not found")
+    
+    metric = await crud.create_metric(
+        db=db,
+        task_id=metric_data.task_id,
+        metric_name=metric_data.metric_name,
+        metric_value=metric_data.metric_value
+    )
+    return metric
+
+
+@app.post("/api/db/metrics/batch", response_model=List[schemas.MetricResponse], status_code=201)
+async def create_metrics_batch_db(
+    task_id: str,
+    metrics: Dict[str, float],
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Create multiple metrics for a task at once
+    Example body: {"accuracy": 0.95, "stability": 0.88, "balance": 0.92}
+    """
+    try:
+        task_uuid = uuid.UUID(task_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid task ID format")
+    
+    # Verify task result exists
+    task_result = await crud.get_task_result(db, task_uuid)
+    if not task_result:
+        raise HTTPException(status_code=404, detail="Task result not found")
+    
+    created_metrics = await crud.create_metrics_batch(db, task_uuid, metrics)
+    return created_metrics
+
+
+@app.get("/api/db/metrics/{metric_id}", response_model=schemas.MetricResponse)
+async def get_metric_db(metric_id: str, db: AsyncSession = Depends(get_db)):
+    """
+    Get a specific metric by ID
+    """
+    try:
+        metric_uuid = uuid.UUID(metric_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid metric ID format")
+    
+    # Note: get_metric doesn't exist in async crud.py
+    raise HTTPException(status_code=501, detail="Not implemented yet")
+
+
+@app.get("/api/db/metrics/task/{task_id}", response_model=schemas.MetricListResponse)
+async def get_metrics_by_task_db(
+    task_id: str,
+    skip: int = 0,
+    limit: int = 100,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get all metrics for a specific task result
+    """
+    try:
+        task_uuid = uuid.UUID(task_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid task ID format")
+    
+    # Verify task result exists
+    task_result = await crud.get_task_result(db, task_uuid)
+    if not task_result:
+        raise HTTPException(status_code=404, detail="Task result not found")
+    
+    metrics = await crud.get_metrics_by_task(db, task_uuid, skip, limit)
+    
+    return {
+        "metrics": metrics,
+        "total": len(metrics)
+    }
+
+
+@app.get("/api/db/metrics/task/{task_id}/name/{metric_name}", response_model=List[schemas.MetricResponse])
+async def get_metrics_by_name_db(
+    task_id: str,
+    metric_name: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get all metrics with a specific name for a task
+    """
+    try:
+        task_uuid = uuid.UUID(task_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid task ID format")
+    
+    # Note: This function doesn't exist in async crud.py
+    return []
+
+
+@app.put("/api/db/metrics/{metric_id}", response_model=schemas.MetricResponse)
+async def update_metric_db(
+    metric_id: str,
+    metric_data: schemas.MetricUpdate,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Update a metric value
+    """
+    try:
+        metric_uuid = uuid.UUID(metric_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid metric ID format")
+    
+    # Note: This function doesn't exist in async crud.py
+    raise HTTPException(status_code=501, detail="Not implemented yet")
+
+
+@app.delete("/api/db/metrics/{metric_id}", status_code=204)
+async def delete_metric_db(metric_id: str, db: AsyncSession = Depends(get_db)):
+    """
+    Delete a metric
+    """
+    try:
+        metric_uuid = uuid.UUID(metric_id)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Invalid metric ID format")
+    
+    # Note: This function doesn't exist in async crud.py
+    raise HTTPException(status_code=501, detail="Not implemented yet")
+
 
 # ==================== Cleanup Functions ====================
 

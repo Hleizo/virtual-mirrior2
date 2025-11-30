@@ -18,7 +18,7 @@ export interface CameraFeedHandle {
 type PermissionState = 'idle' | 'requesting' | 'granted' | 'denied' | 'error';
 
 export const CameraFeed = forwardRef<CameraFeedHandle, CameraFeedProps>(
-  ({ onVideoReady, width = '100%', height = 'auto', autoStart = true }, ref) => {
+  ({ onVideoReady, autoStart = true }, ref) => {
     const videoRef = useRef<HTMLVideoElement>(null);
     const streamRef = useRef<MediaStream | null>(null);
     const [permissionState, setPermissionState] = useState<PermissionState>('idle');
@@ -31,13 +31,10 @@ export const CameraFeed = forwardRef<CameraFeedHandle, CameraFeedProps>(
 
         console.log('CAMERA: Requesting camera access...');
 
-        // Request camera access with specific constraints
+        // Request camera access - let browser choose best resolution
         const stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode: 'user',
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-            aspectRatio: { ideal: 16/9 }
           },
           audio: false,
         });
@@ -134,14 +131,14 @@ export const CameraFeed = forwardRef<CameraFeedHandle, CameraFeedProps>(
       <Box
         sx={{
           position: 'relative',
-          width,
-          height,
-          bgcolor: '#000',
+          width: '100%',
+          bgcolor: 'transparent',
           borderRadius: 2,
           overflow: 'hidden',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
+          margin: '0 auto',
         }}
       >
         {/* Video Element */}
@@ -152,12 +149,13 @@ export const CameraFeed = forwardRef<CameraFeedHandle, CameraFeedProps>(
           autoPlay
           style={{
             width: '100%',
-            height: '100%',
+            height: 'auto',
+            maxWidth: '100%',
+            maxHeight: '80vh',
             objectFit: 'contain',
             transform: 'scaleX(-1)', // Mirror effect
             display: permissionState === 'granted' ? 'block' : 'none',
-            minWidth: '320px',
-            minHeight: '240px',
+            borderRadius: '8px',
           }}
         />
 
@@ -231,3 +229,5 @@ export const CameraFeed = forwardRef<CameraFeedHandle, CameraFeedProps>(
 );
 
 CameraFeed.displayName = 'CameraFeed';
+
+export default CameraFeed;

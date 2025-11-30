@@ -41,7 +41,7 @@ export function useSessionStorage() {
   ): Promise<string> => {
     setError(null);
     try {
-      const sessionId = await sessionStorage.saveSession(metrics, options);
+      const sessionId = await sessionStorage.saveSession(metrics, options.analysisResults, options);
       await loadSessions(); // Refresh the list
       return sessionId;
     } catch (err) {
@@ -49,6 +49,7 @@ export function useSessionStorage() {
       throw err;
     }
   }, [loadSessions]);
+
 
   // Get a single session
   const getSession = useCallback(async (sessionId: string): Promise<StoredSession | null> => {

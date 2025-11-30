@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useMemo, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Container,
   Typography,
@@ -17,6 +17,7 @@ import {
   Alert,
   Chip,
   Divider,
+  CircularProgress,
 } from '@mui/material';
 import {
   Download as DownloadIcon,
@@ -41,16 +42,97 @@ import {
   PolarRadiusAxis,
   Radar,
 } from 'recharts';
-import { useSessionStore } from '../store/session';
 import { gradeMetric, getLevelColor } from '../clinical/standards';
 import { computeOverallRisk, getRiskColor, getRiskLabel } from '../clinical/scoring';
 import type { TaskName } from '../store/session';
+import { getSession, getSessionTasks, getTaskMetrics } from '../services/api';
+
+interface SessionData {
+  session: any;
+  tasks: Array<{
+    task: TaskName;
+    metrics: Record<string, number>;
+  }>;
+}
 
 const ClinicianResultsPage = () => {
   const navigate = useNavigate();
-  const summary = useSessionStore((state) => state.current);
-  const childProfile = useSessionStore((state) => state.childProfile);
+  const [searchParams] = useSearchParams();
+  const sessionIdFromUrl = searchParams.get('sessionId');
+  
   const [notes, setNotes] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [sessionData, setSessionData] = useState<SessionData | null>(null);
+
+  // Fetch data from backend using URL parameter
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!sessionIdFromUrl) {
+        setError('No session ID provided in URL');
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError(null);
+        console.log('📡 Fetching session data from backend:', sessionIdFromUrl);
+        
+        // Fetch session details
+        const session = await getSession(sessionIdFromUrl);
+        
+        if (!session) {
+          setError('This session was not saved. Please try again.');
+          setLoading(false);
+          return;
+        }
+        
+        console.log('✅ Session loaded:', session);
+        
+        // Fetch tasks for this session
+        const tasksData = await getSessionTasks(sessionIdFromUrl);
+        console.log('✅ Tasks loaded:', tasksData);
+        
+        // Fetch metrics for each task
+        const tasksWithMetrics = await Promise.all(
+          tasksData.map(async (task: any) => {
+            const metricsData = await getTaskMetrics(task.id);
+            console.log(`✅ Metrics loaded for task ${task.task_name}:`, metricsData);
+            
+            // Convert metrics array to object format
+            const metricsObj: Record<string, number> = {};
+            metricsData.forEach((metric: any) => {
+              metricsObj[metric.metric_name] = metric.metric_value;
+            });
+            
+            return {
+              task: task.task_name as TaskName,
+              metrics: metricsObj,
+            };
+          })
+        );
+        
+        setSessionData({
+          session,
+          tasks: tasksWithMetrics,
+        });
+        
+        console.log('✅ All data loaded successfully');
+      } catch (err: any) {
+        console.error('❌ Failed to fetch session data:', err);
+        if (err.message?.includes('404') || err.message?.includes('not found')) {
+          setError('This session was not saved. Please try again.');
+        } else {
+          setError('Failed to load session data. Please check your connection and try again.');
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [sessionIdFromUrl]);
 
   // Helper to get primary metric for each task
   const getPrimaryMetric = (taskName: TaskName, metrics: Record<string, number | string>) => {
@@ -70,114 +152,77 @@ const ClinicianResultsPage = () => {
 
   // Compute clinical grades for all tasks
   const clinicalGrades = useMemo(() => {
-    if (!summary) return [];
+    if (!sessionData) return [];
     
-    return summary.tasks.map((task) => {
+    return sessionData.tasks.map((task) => {
       const taskName = task.task as TaskName;
       const primaryMetric = getPrimaryMetric(taskName, task.metrics);
+      const age = sessionData.session.child_age;
       const grade = gradeMetric(
         taskName,
         primaryMetric.name,
         primaryMetric.value,
-        childProfile?.ageYears || summary.childAgeYears
+        age
       );
       return { task: taskName, grade };
     });
-  }, [summary, childProfile]);
+  }, [sessionData]);
 
-  // Compute overall risk if not already set
+  // Compute overall risk from clinical grades
   const overallRisk = useMemo(() => {
-    if (summary?.overallRisk) return summary.overallRisk;
-    const computed = computeOverallRisk(clinicalGrades);
-    return computed;
-  }, [summary, clinicalGrades]);
-
-  const handleLoadDemoData = () => {
-    console.log('Loading demo data...');
-    try {
-      const setCurrent = useSessionStore.getState().setCurrent;
-      const setChildProfile = useSessionStore.getState().setChildProfile;
-      
-      // Set demo child profile
-      setChildProfile({
-        childName: 'Demo Child',
-        ageYears: 8,
-        gender: 'Male',
-        heightCm: 130,
-        weightKg: 30,
-        notes: 'Demo data for testing',
-      });
-      
-      // Set demo session data
-      setCurrent({
-        sessionId: `DEMO-${Date.now()}`,
-        childAgeYears: 8,
-        startedAt: new Date(Date.now() - 300000).toISOString(),
-        endedAt: new Date().toISOString(),
-        overallRisk: 'normal' as const,
-        tasks: [
-          {
-            task: 'raise_hand' as TaskName,
-            metrics: { shoulderFlexionMax: 125 } as Record<string, number>,
-          },
-          {
-            task: 'one_leg' as TaskName,
-            metrics: { holdTime: 6.2, swayIndex: 0.015 } as Record<string, number>,
-          },
-          {
-            task: 'walk' as TaskName,
-            metrics: { stepCount: 4, symmetryPercent: 92 } as Record<string, number>,
-          },
-          {
-            task: 'jump' as TaskName,
-            metrics: { 
-              jumpHeightPixels: 120,
-              jumpHeightCm: 12.5,
-              jumpHeightPercent: 9.6
-            } as Record<string, number>,
-          },
-        ],
-      });
-      console.log('Demo data loaded successfully!');
-    } catch (error) {
-      console.error('Error loading demo data:', error);
-      alert('Error loading demo data: ' + error);
+    if (!sessionData) return 'normal';
+    // Use backend risk level if available, otherwise compute
+    if (sessionData.session.risk_level) {
+      return sessionData.session.risk_level;
     }
-  };
+    return computeOverallRisk(clinicalGrades);
+  }, [sessionData, clinicalGrades]);
 
-  if (!summary) {
+
+
+  if (loading) {
+    return (
+      <Container maxWidth="lg" sx={{ py: 4, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
+        <Stack spacing={2} alignItems="center">
+          <CircularProgress size={60} />
+          <Typography variant="h6" color="text.secondary">
+            Loading session data from database...
+          </Typography>
+        </Stack>
+      </Container>
+    );
+  }
+
+  if (error || !sessionData) {
     return (
       <Container maxWidth="lg" sx={{ py: 4, minHeight: '100vh' }}>
         <Paper elevation={3} sx={{ p: 4, textAlign: 'center' }}>
-          <Typography variant="h5" gutterBottom color="primary">
-            No Session Data Found
+          <Typography variant="h5" gutterBottom color="error">
+            Failed to Load Session
           </Typography>
-          <Alert severity="info" sx={{ mb: 3, mt: 2 }}>
-            No session found. Please complete a session first or load demo results.
+          <Alert severity="error" sx={{ mb: 3, mt: 2 }}>
+            <Typography variant="body1" fontWeight={600}>
+              {error || 'No session data found'}
+            </Typography>
+            <Typography variant="body2">
+              {!sessionIdFromUrl ? 'No session ID provided in URL.' : 'Failed to load session from backend.'}
+            </Typography>
           </Alert>
-          <Stack direction="row" spacing={2} justifyContent="center">
-            <Button
-              variant="contained"
-              startIcon={<HomeIcon />}
-              onClick={() => navigate('/')}
-            >
-              Go to Home
-            </Button>
-            <Button
-              variant="contained"
-              color="success"
-              onClick={handleLoadDemoData}
-            >
-              Load Demo Data
-            </Button>
-          </Stack>
+          <Button
+            variant="contained"
+            startIcon={<HomeIcon />}
+            onClick={() => navigate('/')}
+          >
+            Go to Home
+          </Button>
         </Paper>
       </Container>
     );
   }
 
   // Prepare chart data
-  const chartData = summary.tasks.map((task) => {
+  const tasks = sessionData.tasks;
+  const chartData = tasks.map((task) => {
     const metrics = task.metrics;
     return {
       name: task.task.replace('_', ' '),
@@ -185,23 +230,20 @@ const ClinicianResultsPage = () => {
     };
   });
 
-  // Collect all flags
-  const allFlags = summary.tasks.flatMap((task) => task.flags || []);
-
   const handleExportJSON = () => {
-    const json = JSON.stringify(summary, null, 2);
+    const json = JSON.stringify(sessionData, null, 2);
     const blob = new Blob([json], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `session-${summary.sessionId}.json`;
+    a.download = `session-${sessionData.session.id}.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
   const handleExportCSV = () => {
     let csv = 'Task,Metric,Value\n';
-    summary.tasks.forEach((task) => {
+    tasks.forEach((task) => {
       Object.entries(task.metrics).forEach(([key, value]) => {
         csv += `${task.task},${key},${value}\n`;
       });
@@ -211,7 +253,7 @@ const ClinicianResultsPage = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `session-${summary.sessionId}.csv`;
+    a.download = `session-${sessionData.session.id}.csv`;
     a.click();
     URL.revokeObjectURL(url);
   };
@@ -225,7 +267,7 @@ const ClinicianResultsPage = () => {
     const interpretations: string[] = [];
 
     // Analyze each task
-    summary.tasks.forEach((task) => {
+    tasks.forEach((task: any) => {
       const metrics = task.metrics;
 
       switch (task.task) {
@@ -280,9 +322,9 @@ const ClinicianResultsPage = () => {
     });
 
     // Overall assessment
-    if (summary.overallRisk === 'normal') {
+    if (overallRisk === 'normal') {
       interpretations.unshift('Overall assessment: Motor development appears age-appropriate across all domains.');
-    } else if (summary.overallRisk === 'monitor') {
+    } else if (overallRisk === 'monitor') {
       interpretations.unshift('Overall assessment: Some areas show borderline performance. Recommend follow-up in 6-8 weeks.');
     } else {
       interpretations.unshift('Overall assessment: Multiple areas of concern identified. Comprehensive evaluation recommended.');
@@ -294,7 +336,7 @@ const ClinicianResultsPage = () => {
   const aiInterpretations = generateAIInterpretation();
 
   // Prepare radar chart data
-  const radarData = summary.tasks.map((task) => {
+  const radarData = tasks.map((task: any) => {
     let score = 100;
 
     switch (task.task) {
@@ -330,8 +372,9 @@ const ClinicianResultsPage = () => {
         Clinician Assessment Report
       </Typography>
       <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-        Session ID: {summary.sessionId} • Started: {new Date(summary.startedAt).toLocaleString()}
-        {summary.childAgeYears && ` • Age: ${summary.childAgeYears} years`}
+        Session ID: {sessionData.session.id} • Started: {new Date(sessionData.session.created_at).toLocaleString()}
+        {sessionData.session.child_age && ` • Age: ${sessionData.session.child_age} years`}
+        {sessionData.session.child_name && ` • Child: ${sessionData.session.child_name}`}
       </Typography>
 
       {/* Risk Level */}
@@ -400,7 +443,7 @@ const ClinicianResultsPage = () => {
               </TableRow>
             </TableHead>
             <TableBody>
-              {summary.tasks.map((task, taskIndex) => {
+              {tasks.map((task, taskIndex: number) => {
                 const clinicalGrade = clinicalGrades[taskIndex]?.grade;
                 return Object.entries(task.metrics).map(([key, value], metricIndex) => (
                   <TableRow key={`${taskIndex}-${metricIndex}`}>
@@ -411,7 +454,7 @@ const ClinicianResultsPage = () => {
                     )}
                     <TableCell>{key}</TableCell>
                     <TableCell>
-                      {typeof value === 'number' ? value.toFixed(2) : value}
+                      {typeof value === 'number' ? value.toFixed(2) : String(value)}
                     </TableCell>
                     {metricIndex === 0 && (
                       <TableCell rowSpan={Object.keys(task.metrics).length}>
@@ -500,22 +543,6 @@ const ClinicianResultsPage = () => {
           </Button>
         </Box>
       </Paper>
-
-      {/* Flags */}
-      {allFlags.length > 0 && (
-        <Paper elevation={2} sx={{ mb: 3, p: 2 }}>
-          <Typography variant="h6" gutterBottom fontWeight={600}>
-            Clinical Flags
-          </Typography>
-          <Stack spacing={1}>
-            {allFlags.map((flag, index) => (
-              <Alert key={index} severity="warning">
-                {flag}
-              </Alert>
-            ))}
-          </Stack>
-        </Paper>
-      )}
 
       {/* Notes */}
       <Paper elevation={2} sx={{ mb: 3, p: 2 }}>

@@ -1,4 +1,4 @@
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import {
   Container,
   Typography,
@@ -10,24 +10,111 @@ import {
   Stack,
   Alert,
   Chip,
+  CircularProgress,
 } from '@mui/material';
 import {
   CheckCircle as CheckCircleIcon,
   Home as HomeIcon,
   Download as DownloadIcon,
+  Cancel as CancelIcon,
+  Warning as WarningIcon,
 } from '@mui/icons-material';
-import { useMemo, useRef } from 'react';
+import { useMemo, useRef, useState, useEffect } from 'react';
 import { RadialBarChart, RadialBar, PolarAngleAxis, ResponsiveContainer } from 'recharts';
 import html2canvas from 'html2canvas';
-import { useSessionStore } from '../store/session';
 import { gradeMetric, getLevelColor } from '../clinical/standards';
 import type { TaskName } from '../store/session';
+import { getSession, getSessionTasks, getTaskMetrics } from '../services/api';
+
+interface SessionData {
+  session: any;
+  tasks: Array<{
+    task: TaskName;
+    metrics: Record<string, number>;
+    status?: string;
+    notes?: string;
+  }>;
+}
 
 const ParentResultsPage = () => {
   const navigate = useNavigate();
-  const summary = useSessionStore((state) => state.current);
-  const childProfile = useSessionStore((state) => state.childProfile);
+  const { sessionId: sessionIdFromUrl } = useParams<{ sessionId: string }>();
+  
   const contentRef = useRef<HTMLDivElement>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [sessionData, setSessionData] = useState<SessionData | null>(null);
+
+  // Fetch data from backend using URL parameter
+  useEffect(() => {
+    const fetchData = async () => {
+      if (!sessionIdFromUrl) {
+        setError('No session ID provided in URL');
+        setLoading(false);
+        return;
+      }
+
+      try {
+        setLoading(true);
+        setError(null);
+        console.log('📡 Fetching session data from backend:', sessionIdFromUrl);
+        
+        // Fetch session details
+        const session = await getSession(sessionIdFromUrl);
+        
+        if (!session) {
+          setError('This session was not saved. Please try again.');
+          setLoading(false);
+          return;
+        }
+        
+        console.log('✅ Session loaded:', session);
+        
+        // Fetch tasks for this session
+        const tasksData = await getSessionTasks(sessionIdFromUrl);
+        console.log('✅ Tasks loaded:', tasksData);
+        
+        // Fetch metrics for each task
+        const tasksWithMetrics = await Promise.all(
+          tasksData.map(async (task: any) => {
+            const metricsData = await getTaskMetrics(task.id);
+            console.log(`✅ Metrics loaded for task ${task.task_name}:`, metricsData);
+            
+            // Convert metrics array to object format
+            const metricsObj: Record<string, number> = {};
+            metricsData.forEach((metric: any) => {
+              metricsObj[metric.metric_name] = metric.metric_value;
+            });
+            
+            return {
+              task: task.task_name as TaskName,
+              metrics: metricsObj,
+              status: task.status || 'success', // Track if task failed
+              notes: task.notes || '',
+            };
+          })
+        );
+        
+        setSessionData({
+          session,
+          tasks: tasksWithMetrics,
+        });
+        
+        console.log('✅ All data loaded successfully');
+      } catch (err: any) {
+        console.error('❌ Failed to fetch session data:', err);
+        if (err.message?.includes('404') || err.message?.includes('not found')) {
+          setError('Session not found. It may have been deleted or is from a previous database version.');
+        } else {
+          setError('Failed to load session data. Please check your connection and try again.');
+        }
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [sessionIdFromUrl]);
 
   // Helper: get primary metric for a task
   const getPrimaryMetric = (taskName: TaskName, metrics: Record<string, number | string>) => {
@@ -47,19 +134,20 @@ const ParentResultsPage = () => {
 
   // Clinical grades for each task
   const clinicalGrades = useMemo(() => {
-    if (!summary) return [];
-    return summary.tasks.map((t) => {
+    if (!sessionData) return [];
+    return sessionData.tasks.map((t) => {
       const primary = getPrimaryMetric(t.task, t.metrics);
-      const grade = gradeMetric(t.task, primary.name, primary.value as number, summary.childAgeYears);
+      const age = sessionData.session.child_age;
+      const grade = gradeMetric(t.task, primary.name, primary.value as number, age);
       return { taskName: t.task, ...grade };
     });
-  }, [summary]);
+  }, [sessionData]);
 
   // Overall score (0-100) from clinical grades
   const overallScore = useMemo(() => {
     if (clinicalGrades.length === 0) return 0;
-    const scoreMap = { normal: 100, borderline: 70, abnormal: 30 };
-    const total = clinicalGrades.reduce((sum, g) => sum + scoreMap[g.level], 0);
+    const scoreMap: Record<string, number> = { normal: 100, borderline: 70, abnormal: 30 };
+    const total = clinicalGrades.reduce((sum: number, g: any) => sum + (scoreMap[g.level] || 0), 0);
     return Math.round(total / clinicalGrades.length);
   }, [clinicalGrades]);
 
@@ -82,14 +170,14 @@ const ParentResultsPage = () => {
 
   // Download results as PNG
   const handleDownloadPNG = async () => {
-    if (!contentRef.current) return;
+    if (!contentRef.current || !sessionData) return;
     try {
       const canvas = await html2canvas(contentRef.current, {
         backgroundColor: '#ffffff',
         scale: 2,
       });
       const link = document.createElement('a');
-      link.download = `${childProfile?.childName || 'Child'}-Results.png`;
+      link.download = `${sessionData.session.child_name || 'Child'}-Results.png`;
       link.href = canvas.toDataURL();
       link.click();
     } catch (error) {
@@ -98,11 +186,29 @@ const ParentResultsPage = () => {
     }
   };
 
-  if (!summary) {
+  if (loading) {
+    return (
+      <Container maxWidth="md" sx={{ py: 4, display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '50vh' }}>
+        <Stack spacing={2} alignItems="center">
+          <CircularProgress size={60} />
+          <Typography variant="h6" color="text.secondary">
+            Loading session data from database...
+          </Typography>
+        </Stack>
+      </Container>
+    );
+  }
+
+  if (error || !sessionData) {
     return (
       <Container maxWidth="md" sx={{ py: 4 }}>
-        <Alert severity="info">
-          No session found. Please complete a session first or load demo results.
+        <Alert severity="error" sx={{ mb: 2 }}>
+          <Typography variant="body1" fontWeight={600}>
+            {error || 'No session data found'}
+          </Typography>
+          <Typography variant="body2">
+            {!sessionIdFromUrl ? 'No session ID provided in URL.' : 'Failed to load session from backend.'}
+          </Typography>
         </Alert>
         <Button
           variant="contained"
@@ -124,9 +230,9 @@ const ParentResultsPage = () => {
           Assessment Results
         </Typography>
         <Typography variant="body1" color="text.secondary" sx={{ mb: 3 }}>
-          Session completed on {new Date(summary.startedAt).toLocaleDateString()}
-          {childProfile?.childName && ` • ${childProfile.childName}`}
-          {summary.childAgeYears && ` • Age: ${summary.childAgeYears} years`}
+          Session completed on {new Date(sessionData.session.created_at).toLocaleDateString()}
+          {sessionData.session.child_name && ` • ${sessionData.session.child_name}`}
+          {sessionData.session.child_age && ` • Age: ${sessionData.session.child_age} years`}
         </Typography>
 
         {/* Overall Score Donut Chart */}
@@ -180,13 +286,64 @@ const ParentResultsPage = () => {
           </Typography>
         </Paper>
 
+      {/* Failed Tasks Warning */}
+      {sessionData.tasks.some(t => t.status === 'failed') && (
+        <Alert severity="warning" sx={{ mb: 3 }} icon={<WarningIcon />}>
+          <Typography variant="body1" fontWeight={600} gutterBottom>
+            Some tasks were not completed
+          </Typography>
+          <Typography variant="body2">
+            {sessionData.tasks.filter(t => t.status === 'failed').length} task(s) were not completed during the assessment. 
+            This may affect the overall evaluation. Consider retrying these tasks for a more complete assessment.
+          </Typography>
+        </Alert>
+      )}
+
       {/* Task Cards */}
       <Typography variant="h6" gutterBottom fontWeight={600}>
         Activity Details
       </Typography>
       <Stack spacing={3} sx={{ mb: 3 }}>
-        {summary.tasks.map((task, index) => {
-          const grade = clinicalGrades.find(g => g.taskName === task.task);
+        {sessionData.tasks.map((task, index: number) => {
+          const isFailed = task.status === 'failed';
+          const grade = clinicalGrades.find((g: any) => g.taskName === task.task);
+          
+          if (isFailed) {
+            // Show failed task card
+            return (
+              <Card key={index} variant="outlined" sx={{ borderColor: 'error.main', borderWidth: 2 }}>
+                <CardContent>
+                  <Stack direction="row" spacing={2} alignItems="center" sx={{ mb: 2 }}>
+                    <CancelIcon 
+                      color="error" 
+                      sx={{ fontSize: '2.5rem' }} 
+                    />
+                    <Box sx={{ flex: 1 }}>
+                      <Typography variant="h6" fontWeight={600}>
+                        {task.task.replace('_', ' ').toUpperCase()}
+                      </Typography>
+                      <Typography variant="body2" color="error.main" fontWeight={600}>
+                        Task Not Completed
+                      </Typography>
+                    </Box>
+                    <Chip 
+                      label="Failed"
+                      color="error"
+                      sx={{ fontWeight: 600 }}
+                    />
+                  </Stack>
+
+                  <Alert severity="error" sx={{ mt: 2 }}>
+                    <Typography variant="body2">
+                      <strong>Note:</strong> This task was not completed during the assessment. 
+                      {task.notes && ` Reason: ${task.notes.replace('Failed: ', '')}`}
+                    </Typography>
+                  </Alert>
+                </CardContent>
+              </Card>
+            );
+          }
+          
           if (!grade) return null;
           
           const tip = getTip(grade.level, task.task);

@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 
 export type TaskName = 'raise_hand' | 'one_leg' | 'walk' | 'jump';
 
@@ -36,12 +37,19 @@ interface SessionStore {
   clear: () => void;
 }
 
-export const useSessionStore = create<SessionStore>((set, get) => ({
-  current: null,
-  childProfile: null,
-  setCurrent: (summary) => set({ current: summary }),
-  setChildProfile: (profile) => set({ childProfile: profile }),
-  getCurrent: () => get().current,
-  getChildProfile: () => get().childProfile,
-  clear: () => set({ current: null, childProfile: null }),
-}));
+export const useSessionStore = create<SessionStore>()(
+  persist(
+    (set, get) => ({
+      current: null,
+      childProfile: null,
+      setCurrent: (summary) => set({ current: summary }),
+      setChildProfile: (profile) => set({ childProfile: profile }),
+      getCurrent: () => get().current,
+      getChildProfile: () => get().childProfile,
+      clear: () => set({ current: null, childProfile: null }),
+    }),
+    {
+      name: 'virtual-mirror-session', // localStorage key
+    }
+  )
+);

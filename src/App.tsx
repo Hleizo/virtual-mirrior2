@@ -5,9 +5,13 @@ import HomePage from './pages/HomePage';
 import ChildInfoPage from './pages/ChildInfoPage';
 import SessionPageOrchestrator from './pages/SessionPageOrchestrator';
 import ParentResultsPage from './pages/ParentResultsPage';
-import ClinicianResultsPage from './pages/ClinicianResultsPage';
 import AdminDashboard from './pages/AdminDashboard';
-import PoseSmokeTest from './pages/PoseSmokeTest';
+import AnalyticsPage from './pages/AnalyticsPage';
+import SessionComparison from './pages/SessionComparison';
+import ProgressTracking from './pages/ProgressTracking';
+import ClinicianView from './pages/ClinicianView';
+import AboutPage from './pages/AboutPage';
+import HowItWorksPage from './pages/HowItWorksPage';
 
 // Create Material UI theme with custom design touches
 const theme = createTheme({
@@ -109,12 +113,20 @@ function App() {
           <Box sx={{ flex: 1 }}>
             <Routes>
               <Route path="/" element={<HomePage />} />
-              <Route path="/child" element={<ChildInfoPage />} />
-              <Route path="/session" element={<SessionPageOrchestrator />} />
-              <Route path="/results/parent" element={<ParentResultsPage />} />
-              <Route path="/results/clinician" element={<ClinicianResultsPage />} />
+              <Route path="/about" element={<AboutPage />} />
+              <Route path="/how-it-works" element={<HowItWorksPage />} />
+              
+              {/* Parent Flow */}
+              <Route path="/parent/child-info" element={<ChildInfoPage />} />
+              <Route path="/parent/session" element={<SessionPageOrchestrator />} />
+              <Route path="/parent/results/:sessionId" element={<ParentResultsPage />} />
+              
+              {/* Admin Flow */}
               <Route path="/admin" element={<AdminDashboard />} />
-              <Route path="/test" element={<PoseSmokeTest />} />
+              <Route path="/admin/analytics" element={<AnalyticsPage />} />
+              <Route path="/admin/compare" element={<SessionComparison />} />
+              <Route path="/admin/progress/:sessionId" element={<ProgressTracking />} />
+              <Route path="/admin/clinician/:sessionId" element={<ClinicianView />} />
             </Routes>
           </Box>
         </Box>
