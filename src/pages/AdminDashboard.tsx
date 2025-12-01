@@ -13,7 +13,6 @@ import {
   MenuItem,
   TextField,
   InputAdornment,
-  CircularProgress,
   Alert,
   IconButton,
   Menu,
