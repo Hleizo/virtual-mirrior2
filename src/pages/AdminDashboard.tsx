@@ -19,6 +19,7 @@ import {
   Menu,
   ListItemIcon,
   ListItemText,
+  keyframes,
 } from '@mui/material';
 import { DataGrid } from '@mui/x-data-grid';
 import type { GridColDef, GridRowsProp } from '@mui/x-data-grid';
@@ -35,6 +36,12 @@ import AddIcon from '@mui/icons-material/Add';
 import MoreVertIcon from '@mui/icons-material/MoreVert';
 import { useNavigate } from 'react-router-dom';
 import { getAllSessions } from '../services/api';
+
+// Animated bouncing dots keyframe
+const bounce = keyframes`
+  0%, 80%, 100% { transform: translateY(0); }
+  40% { transform: translateY(-6px); }
+`;
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
@@ -455,11 +462,27 @@ const AdminDashboard = () => {
 
       {/* Loading State */}
       {loading && (
-        <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', py: 8 }}>
-          <CircularProgress />
-          <Typography variant="body1" sx={{ ml: 2 }}>
-            Loading sessions from backend...
-          </Typography>
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center', 
+          py: 10,
+        }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+            {[0, 1, 2].map((i) => (
+              <Box
+                key={i}
+                sx={{
+                  width: 12,
+                  height: 12,
+                  borderRadius: '50%',
+                  bgcolor: 'primary.main',
+                  animation: `${bounce} 1s ease-in-out infinite`,
+                  animationDelay: `${i * 0.15}s`,
+                }}
+              />
+            ))}
+          </Box>
         </Box>
       )}
 

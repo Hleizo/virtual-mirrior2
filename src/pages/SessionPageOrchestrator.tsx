@@ -13,8 +13,8 @@ import {
   IconButton,
   Fade,
   Paper,
-  Alert,
   LinearProgress,
+  Grid,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
 import VolumeUpIcon from '@mui/icons-material/VolumeUp';
@@ -24,6 +24,10 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import ErrorOutlineIcon from '@mui/icons-material/ErrorOutline';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import StopIcon from '@mui/icons-material/Stop';
+import AccessibilityNewIcon from '@mui/icons-material/AccessibilityNew';
+import PanToolIcon from '@mui/icons-material/PanTool';
+import DirectionsWalkIcon from '@mui/icons-material/DirectionsWalk';
+import TouchAppIcon from '@mui/icons-material/TouchApp';
 import CameraFeed from '../components/CameraFeed';
 import PoseDetector from '../components/PoseDetector';
 import { useSessionStore } from '../store/session';
@@ -31,8 +35,33 @@ import type { TaskMetric } from '../store/session';
 import { createTaskHandlers, TASK_SEQUENCE } from '../logic/tasks';
 import type { TaskUpdate } from '../logic/tasks';
 import { cancelSpeech } from '../utils/voice';
+import { speak, stopSpeaking, VOICES } from '../utils/elevenlabs-tts';
 import { createSession, addTask, addMetric } from '../services/api';
 import { useSearchParams } from 'react-router-dom';
+
+// Task icons and descriptions for better UX
+const TASK_INFO: Record<string, { icon: React.ReactNode; title: string; instruction: string }> = {
+  raise_hand: {
+    icon: <PanToolIcon sx={{ fontSize: 48, color: 'primary.main' }} />,
+    title: 'Raise Your Hand',
+    instruction: 'Lift your right arm straight up above your head. Hold it steady.',
+  },
+  one_leg: {
+    icon: <AccessibilityNewIcon sx={{ fontSize: 48, color: 'primary.main' }} />,
+    title: 'Stand on One Leg',
+    instruction: 'Lift one foot off the ground and balance on the other leg for as long as you can.',
+  },
+  walk: {
+    icon: <DirectionsWalkIcon sx={{ fontSize: 48, color: 'primary.main' }} />,
+    title: 'Walk Forward',
+    instruction: 'Walk naturally towards the camera in a straight line.',
+  },
+  touch_shoulder: {
+    icon: <TouchAppIcon sx={{ fontSize: 48, color: 'primary.main' }} />,
+    title: 'Touch Your Shoulder',
+    instruction: 'Touch your left shoulder with your right hand.',
+  },
+};
 
 const SessionPageOrchestrator = () => {
   const navigate = useNavigate();
@@ -125,11 +154,20 @@ const SessionPageOrchestrator = () => {
     
     // Start first task
     tasks[TASK_SEQUENCE[0]].start();
+    
+    // Speak the first task instruction
+    if (!voiceMuted) {
+      const taskInfo = TASK_INFO[TASK_SEQUENCE[0]];
+      if (taskInfo) {
+        speak(taskInfo.instruction, VOICES.RACHEL);
+      }
+    }
   };
 
   // Stop session
   const handleStop = () => {
     setIsRunning(false);
+    stopSpeaking();
     
     // Stop current task
     currentTask.stop();
@@ -139,7 +177,8 @@ const SessionPageOrchestrator = () => {
     setVoiceMuted((prev) => {
       const newValue = !prev;
       if (newValue) {
-        cancelSpeech(); // Mute immediately
+        cancelSpeech(); // Mute browser TTS
+        stopSpeaking(); // Mute ElevenLabs TTS
       }
       return newValue;
     });
@@ -163,19 +202,6 @@ const SessionPageOrchestrator = () => {
     currentTask.start();
   };
 
-  const handleNextTask = () => {
-    if (!isRunning || currentTaskIndex >= TASK_SEQUENCE.length - 1) return;
-    
-    currentTask.stop();
-    setTaskStatus('running');
-    setRetryCount(0);
-    const nextIndex = currentTaskIndex + 1;
-    setCurrentTaskIndex(nextIndex);
-    setTaskUpdate(null);
-    setTaskStartTime(Date.now());
-    tasks[TASK_SEQUENCE[nextIndex]].start();
-  };
-
   const handleContinue = () => {
     if (currentTaskIndex < TASK_SEQUENCE.length - 1) {
       // Move to next task
@@ -186,8 +212,19 @@ const SessionPageOrchestrator = () => {
       setTaskUpdate(null);
       setTaskStartTime(Date.now());
       tasks[TASK_SEQUENCE[nextIndex]].start();
+      
+      // Speak instruction for next task
+      if (!voiceMuted) {
+        const taskInfo = TASK_INFO[TASK_SEQUENCE[nextIndex]];
+        if (taskInfo) {
+          speak(taskInfo.instruction, VOICES.RACHEL);
+        }
+      }
     } else {
       // Complete session
+      if (!voiceMuted) {
+        speak("Wonderful! You've completed all the exercises. Great work today!", VOICES.RACHEL);
+      }
       completeSession(completedTasks);
     }
   };
@@ -231,6 +268,9 @@ const SessionPageOrchestrator = () => {
       setTaskStatus('failed');
       saveFailedTask('timeout');
       currentTask.stop();
+      if (!voiceMuted) {
+        speak("Time's up. Let's try the next exercise.", VOICES.RACHEL);
+      }
       return;
     }
 
@@ -243,12 +283,20 @@ const SessionPageOrchestrator = () => {
       setTaskStatus('failed');
       saveFailedTask('low_progress');
       currentTask.stop();
+      if (!voiceMuted) {
+        speak("That's okay, let's move on to the next one.", VOICES.RACHEL);
+      }
       return;
     }
 
     // Check if task is complete
     if (update.done && update.metrics) {
       setTaskStatus('success');
+      
+      // Celebrate with voice
+      if (!voiceMuted) {
+        speak("Great job! That was excellent.", VOICES.RACHEL);
+      };
       const taskMetric: TaskMetric = {
         task: currentTaskName as any,
         metrics: update.metrics,
@@ -409,218 +457,315 @@ const SessionPageOrchestrator = () => {
     }, 500);
   };
 
+  // Get current task info
+  const taskInfo = TASK_INFO[currentTaskName] || {
+    icon: <AccessibilityNewIcon sx={{ fontSize: 48, color: 'primary.main' }} />,
+    title: currentTaskName.replace('_', ' '),
+    instruction: 'Follow the instructions on screen.',
+  };
+
   return (
-    <Container maxWidth="md" sx={{ py: 1 }}>
-      {/* Top Control Bar */}
-      <Paper elevation={1} sx={{ p: 1.5, mb: 1.5, borderRadius: 2 }}>
-        <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
-          <Button
-            variant={isRunning ? "outlined" : "contained"}
-            color={isRunning ? "error" : "primary"}
-            startIcon={isRunning ? <StopIcon /> : <PlayArrowIcon />}
-            onClick={isRunning ? handleStop : handleStart}
-            size="medium"
-            sx={{ fontSize: '0.85rem' }}
-          >
-            {isRunning ? "Stop" : "Start"}
-          </Button>
-          
-          <IconButton
-            onClick={handleToggleVoice}
-            color={voiceMuted ? 'default' : 'primary'}
-            size="small"
-            sx={{ border: '1px solid', borderColor: 'divider' }}
-          >
-            {voiceMuted ? <VolumeOffIcon fontSize="small" /> : <VolumeUpIcon fontSize="small" />}
-          </IconButton>
-
-          {isRunning && taskStatus === 'running' && (
+    <Box sx={{ minHeight: '100vh', bgcolor: '#f5f7fa', py: 2 }}>
+      <Container maxWidth="xl">
+        {/* Top Control Bar */}
+        <Paper elevation={1} sx={{ p: 1.5, mb: 2, borderRadius: 3 }}>
+          <Stack direction="row" spacing={2} alignItems="center">
             <Button
-              variant="outlined"
-              startIcon={<RestartAltIcon />}
-              onClick={handleRestartTask}
-              size="small"
-              sx={{ fontSize: '0.8rem' }}
-            >
-              Restart
-            </Button>
-          )}
-          
-          <Box sx={{ flexGrow: 1 }} />
-          
-          <Chip 
-            label={`${currentTaskIndex + 1}/${TASK_SEQUENCE.length}`}
-            color="primary"
-            variant="outlined"
-            size="small"
-          />
-        </Stack>
-      </Paper>
-
-      {/* Task Title */}
-      {isRunning && (
-        <Box sx={{ mb: 1, textAlign: 'center' }}>
-          <Typography variant="subtitle1" fontWeight={600} color="primary" sx={{ fontSize: '0.95rem' }}>
-            Task {currentTaskIndex + 1}: {currentTaskName.replace('_', ' ').toUpperCase()}
-          </Typography>
-        </Box>
-      )}
-
-      {/* Instruction Box */}
-      {isRunning && taskUpdate && taskStatus === 'running' && (
-        <Alert 
-          severity="info" 
-          sx={{ 
-            mb: 1.5, 
-            py: 0.5,
-            '& .MuiAlert-message': { width: '100%' }
-          }}
-        >
-          <Typography variant="body2" fontWeight={500}>
-            {taskUpdate.message}
-          </Typography>
-          <LinearProgress 
-            variant="determinate" 
-            value={taskUpdate.progress * 100} 
-            sx={{ mt: 0.5, height: 6, borderRadius: 1 }}
-          />
-          <Typography variant="caption" sx={{ mt: 0.25, display: 'block' }}>
-            {Math.round(taskUpdate.progress * 100)}%
-          </Typography>
-        </Alert>
-      )}
-
-      {/* Video Block */}
-      <Box sx={{ mb: 1.5, position: 'relative' }}>
-        <CameraFeed onVideoReady={handleVideoReady} autoStart={true} />
-        <PoseDetector 
-          running={isRunning && taskStatus === 'running'}
-          videoRef={videoRef}
-          onResult={handlePoseResult}
-          showVisualization={true}
-        />
-      </Box>
-
-      {/* Success Feedback */}
-      {taskStatus === 'success' && (
-        <Fade in timeout={300}>
-          <Paper 
-            elevation={2} 
-            sx={{ 
-              p: 2, 
-              mb: 1.5, 
-              bgcolor: 'success.light', 
-              color: 'success.contrastText',
-              textAlign: 'center',
-              borderRadius: 2
-            }}
-          >
-            <CheckCircleIcon sx={{ fontSize: 40, mb: 0.5 }} />
-            <Typography variant="subtitle1" fontWeight={600} gutterBottom>
-              Task Complete! 🎉
-            </Typography>
-            <Button
-              variant="contained"
-              color="inherit"
+              variant={isRunning ? "outlined" : "contained"}
+              color={isRunning ? "error" : "primary"}
+              startIcon={isRunning ? <StopIcon /> : <PlayArrowIcon />}
+              onClick={isRunning ? handleStop : handleStart}
               size="medium"
-              onClick={handleContinue}
-              fullWidth
               sx={{ 
-                mt: 1,
-                bgcolor: 'white', 
-                color: 'success.main',
-                fontSize: '0.85rem',
-                '&:hover': { bgcolor: 'grey.100' }
+                fontSize: '0.9rem', 
+                px: 3,
+                borderRadius: 2,
               }}
             >
-              {currentTaskIndex < TASK_SEQUENCE.length - 1 ? 'Next Task' : 'View Results'}
+              {isRunning ? "Stop" : "Start Session"}
             </Button>
-          </Paper>
-        </Fade>
-      )}
+            
+            <IconButton
+              onClick={handleToggleVoice}
+              color={voiceMuted ? 'default' : 'primary'}
+              sx={{ 
+                border: '1px solid', 
+                borderColor: 'divider',
+                bgcolor: voiceMuted ? 'grey.100' : 'primary.50',
+              }}
+            >
+              {voiceMuted ? <VolumeOffIcon /> : <VolumeUpIcon />}
+            </IconButton>
+            
+            <Box sx={{ flexGrow: 1 }} />
+            
+            <Chip 
+              label={`Task ${currentTaskIndex + 1} of ${TASK_SEQUENCE.length}`}
+              color="primary"
+              variant="filled"
+              sx={{ fontWeight: 600, px: 1 }}
+            />
+          </Stack>
+        </Paper>
 
-      {/* Failure Feedback */}
-      {taskStatus === 'failed' && (
-        <Fade in timeout={300}>
-          <Paper 
-            elevation={2} 
-            sx={{ 
-              p: 2, 
-              mb: 1.5, 
-              bgcolor: 'error.light', 
-              color: 'error.contrastText',
-              textAlign: 'center',
-              borderRadius: 2
-            }}
-          >
-            <ErrorOutlineIcon sx={{ fontSize: 40, mb: 0.5 }} />
-            <Typography variant="subtitle1" fontWeight={600} gutterBottom>
-              Task Not Completed
-            </Typography>
-            <Typography variant="body2" sx={{ mb: 1.5 }}>
-              {retryCount < MAX_RETRIES 
-                ? "You can try again." 
-                : "Let's move on."}
-            </Typography>
-            <Stack spacing={1}>
-              {retryCount < MAX_RETRIES && (
-                <Button
-                  variant="contained"
-                  color="inherit"
-                  size="small"
-                  onClick={handleRetryTask}
-                  fullWidth
-                  sx={{ 
-                    bgcolor: 'white', 
-                    color: 'error.main',
-                    fontSize: '0.85rem',
-                    '&:hover': { bgcolor: 'grey.100' }
-                  }}
-                >
-                  Try Again ({MAX_RETRIES - retryCount} left)
-                </Button>
-              )}
-              <Button
-                variant="outlined"
-                color="inherit"
-                size="small"
-                onClick={handleNextTask}
-                fullWidth
-                disabled={currentTaskIndex >= TASK_SEQUENCE.length - 1}
+        {/* Main Content: Split Layout */}
+        <Grid container spacing={2}>
+          {/* Left Side: Camera Feed */}
+          <Grid size={{ xs: 12, md: 7 }}>
+            <Paper 
+              elevation={2} 
+              sx={{ 
+                borderRadius: 3, 
+                overflow: 'hidden',
+                position: 'relative',
+                bgcolor: '#000',
+              }}
+            >
+              <CameraFeed onVideoReady={handleVideoReady} autoStart={true} />
+              <PoseDetector 
+                running={isRunning && taskStatus === 'running'}
+                videoRef={videoRef}
+                onResult={handlePoseResult}
+                showVisualization={true}
+              />
+            </Paper>
+          </Grid>
+
+          {/* Right Side: Task Instructions & Feedback */}
+          <Grid size={{ xs: 12, md: 5 }}>
+            <Stack spacing={2} sx={{ height: '100%' }}>
+              {/* Task Info Card */}
+              <Paper 
+                elevation={2} 
                 sx={{ 
-                  borderColor: 'white',
+                  p: 3, 
+                  borderRadius: 3,
+                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
                   color: 'white',
-                  fontSize: '0.85rem',
-                  '&:hover': { borderColor: 'grey.100', bgcolor: 'rgba(255,255,255,0.1)' }
+                  textAlign: 'center',
                 }}
               >
-                Skip Task
-              </Button>
-            </Stack>
-          </Paper>
-        </Fade>
-      )}
+                <Box sx={{ 
+                  width: 80, 
+                  height: 80, 
+                  borderRadius: '50%', 
+                  bgcolor: 'rgba(255,255,255,0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  mx: 'auto',
+                  mb: 2,
+                  '& svg': { fontSize: 40, color: 'white' }
+                }}>
+                  {taskInfo.icon}
+                </Box>
+                <Typography variant="h5" fontWeight={700} gutterBottom>
+                  {taskInfo.title}
+                </Typography>
+                <Typography variant="body1" sx={{ opacity: 0.9, lineHeight: 1.6 }}>
+                  {taskInfo.instruction}
+                </Typography>
+              </Paper>
 
-      {/* Results Dialog */}
-      <Dialog open={showResultsDialog} maxWidth="sm" fullWidth>
-        <DialogTitle>Assessment Complete!</DialogTitle>
-        <DialogContent>
-          <Typography>
-            All tasks have been completed. Click below to view the detailed results.
-          </Typography>
-        </DialogContent>
-        <DialogActions>
-          <Button 
-            onClick={() => navigate(`/parent/results/${current?.sessionId}`)} 
-            variant="contained"
-            fullWidth
-            size="large"
-          >
-            View Results
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Container>
+              {/* Progress Card (when running) */}
+              {isRunning && taskStatus === 'running' && taskUpdate && (
+                <Paper elevation={2} sx={{ p: 3, borderRadius: 3 }}>
+                  <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                    Progress
+                  </Typography>
+                  <LinearProgress 
+                    variant="determinate" 
+                    value={taskUpdate.progress * 100} 
+                    sx={{ 
+                      height: 12, 
+                      borderRadius: 2,
+                      bgcolor: 'grey.200',
+                      '& .MuiLinearProgress-bar': {
+                        borderRadius: 2,
+                        background: 'linear-gradient(90deg, #667eea 0%, #764ba2 100%)',
+                      }
+                    }}
+                  />
+                  <Typography variant="h4" fontWeight={700} color="primary" sx={{ mt: 1 }}>
+                    {Math.round(taskUpdate.progress * 100)}%
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
+                    {taskUpdate.message}
+                  </Typography>
+                  
+                  {/* Restart button */}
+                  <Button
+                    variant="outlined"
+                    startIcon={<RestartAltIcon />}
+                    onClick={handleRestartTask}
+                    fullWidth
+                    sx={{ mt: 2 }}
+                  >
+                    Restart Task
+                  </Button>
+                </Paper>
+              )}
+
+              {/* Success Feedback */}
+              {taskStatus === 'success' && (
+                <Fade in timeout={300}>
+                  <Paper 
+                    elevation={3} 
+                    sx={{ 
+                      p: 3, 
+                      borderRadius: 3,
+                      background: 'linear-gradient(135deg, #4caf50 0%, #66bb6a 100%)',
+                      color: 'white',
+                      textAlign: 'center',
+                    }}
+                  >
+                    <CheckCircleIcon sx={{ fontSize: 56, mb: 1 }} />
+                    <Typography variant="h5" fontWeight={700} gutterBottom>
+                      Excellent! 🎉
+                    </Typography>
+                    <Typography variant="body1" sx={{ mb: 2, opacity: 0.9 }}>
+                      Task completed successfully!
+                    </Typography>
+                    <Button
+                      variant="contained"
+                      size="large"
+                      onClick={handleContinue}
+                      fullWidth
+                      sx={{ 
+                        bgcolor: 'white', 
+                        color: 'success.main',
+                        fontWeight: 600,
+                        py: 1.5,
+                        '&:hover': { bgcolor: 'grey.100' }
+                      }}
+                    >
+                      {currentTaskIndex < TASK_SEQUENCE.length - 1 ? 'Next Task →' : 'View Results'}
+                    </Button>
+                  </Paper>
+                </Fade>
+              )}
+
+              {/* Failure Feedback */}
+              {taskStatus === 'failed' && (
+                <Fade in timeout={300}>
+                  <Paper 
+                    elevation={3} 
+                    sx={{ 
+                      p: 3, 
+                      borderRadius: 3,
+                      background: 'linear-gradient(135deg, #ef5350 0%, #f44336 100%)',
+                      color: 'white',
+                      textAlign: 'center',
+                    }}
+                  >
+                    <ErrorOutlineIcon sx={{ fontSize: 56, mb: 1 }} />
+                    <Typography variant="h5" fontWeight={700} gutterBottom>
+                      Let's Try Again
+                    </Typography>
+                    <Typography variant="body1" sx={{ mb: 2, opacity: 0.9 }}>
+                      {retryCount < MAX_RETRIES 
+                        ? "Don't worry, you can try again!" 
+                        : "That's okay, let's move on."}
+                    </Typography>
+                    <Stack spacing={1.5}>
+                      {retryCount < MAX_RETRIES && (
+                        <Button
+                          variant="contained"
+                          size="large"
+                          onClick={handleRetryTask}
+                          fullWidth
+                          sx={{ 
+                            bgcolor: 'white', 
+                            color: 'error.main',
+                            fontWeight: 600,
+                            py: 1.5,
+                            '&:hover': { bgcolor: 'grey.100' }
+                          }}
+                        >
+                          Try Again ({MAX_RETRIES - retryCount} left)
+                        </Button>
+                      )}
+                      <Button
+                        variant="outlined"
+                        size="large"
+                        onClick={handleContinue}
+                        fullWidth
+                        sx={{ 
+                          borderColor: 'rgba(255,255,255,0.5)',
+                          color: 'white',
+                          fontWeight: 600,
+                          py: 1.5,
+                          '&:hover': { 
+                            borderColor: 'white',
+                            bgcolor: 'rgba(255,255,255,0.1)' 
+                          }
+                        }}
+                      >
+                        {currentTaskIndex < TASK_SEQUENCE.length - 1 ? 'Skip to Next Task' : 'View Results'}
+                      </Button>
+                    </Stack>
+                  </Paper>
+                </Fade>
+              )}
+
+              {/* Idle State - Instructions before starting */}
+              {!isRunning && taskStatus === 'idle' && (
+                <Paper elevation={2} sx={{ p: 3, borderRadius: 3, textAlign: 'center' }}>
+                  <Typography variant="h6" fontWeight={600} gutterBottom>
+                    Ready to Begin?
+                  </Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                    Click "Start Session" when you're ready. Make sure you're visible in the camera.
+                  </Typography>
+                  <Button
+                    variant="contained"
+                    size="large"
+                    startIcon={<PlayArrowIcon />}
+                    onClick={handleStart}
+                    fullWidth
+                    sx={{ 
+                      py: 1.5,
+                      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+                    }}
+                  >
+                    Start Session
+                  </Button>
+                </Paper>
+              )}
+            </Stack>
+          </Grid>
+        </Grid>
+
+        {/* Results Dialog */}
+        <Dialog open={showResultsDialog} maxWidth="sm" fullWidth>
+          <DialogTitle sx={{ textAlign: 'center', pt: 3 }}>
+            <CheckCircleIcon sx={{ fontSize: 48, color: 'success.main', mb: 1 }} />
+            <Typography variant="h5" fontWeight={700}>
+              Assessment Complete!
+            </Typography>
+          </DialogTitle>
+          <DialogContent sx={{ textAlign: 'center' }}>
+            <Typography color="text.secondary">
+              Great job! All tasks have been completed. Click below to view your detailed results.
+            </Typography>
+          </DialogContent>
+          <DialogActions sx={{ p: 3, pt: 0 }}>
+            <Button 
+              onClick={() => navigate(`/parent/results/${current?.sessionId}`)} 
+              variant="contained"
+              fullWidth
+              size="large"
+              sx={{ 
+                py: 1.5,
+                background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+              }}
+            >
+              View Results
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </Container>
+    </Box>
   );
 };
 

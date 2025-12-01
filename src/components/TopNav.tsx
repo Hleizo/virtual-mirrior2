@@ -30,9 +30,13 @@ const TopNav = () => {
         background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
         boxShadow: '0 4px 20px rgba(102, 126, 234, 0.3)',
         animation: `${slideDown} 0.5s ease-out`,
+        borderRadius: 0,
+        left: 0,
+        right: 0,
+        width: '100%',
       }}
     >
-      <Toolbar sx={{ py: 0.5 }}>
+      <Toolbar sx={{ py: 0.5, px: { xs: 2, sm: 3 } }}>
         <Box 
           sx={{ 
             display: 'flex', 
@@ -56,11 +60,25 @@ const TopNav = () => {
               textTransform: 'none',
               fontSize: '0.95rem',
               px: 2,
-              borderRadius: 2,
+              borderRadius: 0,
               transition: 'all 0.3s ease',
+              position: 'relative',
+              '&::after': {
+                content: '""',
+                position: 'absolute',
+                bottom: 6,
+                left: '50%',
+                transform: 'translateX(-50%) scaleX(0)',
+                width: '60%',
+                height: 2,
+                bgcolor: 'white',
+                transition: 'transform 0.3s ease',
+              },
               '&:hover': {
-                background: 'rgba(255, 255, 255, 0.15)',
-                transform: 'translateY(-2px)',
+                background: 'transparent',
+                '&::after': {
+                  transform: 'translateX(-50%) scaleX(1)',
+                },
               },
             }}
           >
@@ -76,11 +94,25 @@ const TopNav = () => {
               textTransform: 'none',
               fontSize: '0.95rem',
               px: 2,
-              borderRadius: 2,
+              borderRadius: 0,
               transition: 'all 0.3s ease',
+              position: 'relative',
+              '&::after': {
+                content: '""',
+                position: 'absolute',
+                bottom: 6,
+                left: '50%',
+                transform: 'translateX(-50%) scaleX(0)',
+                width: '60%',
+                height: 2,
+                bgcolor: 'white',
+                transition: 'transform 0.3s ease',
+              },
               '&:hover': {
-                background: 'rgba(255, 255, 255, 0.15)',
-                transform: 'translateY(-2px)',
+                background: 'transparent',
+                '&::after': {
+                  transform: 'translateX(-50%) scaleX(1)',
+                },
               },
             }}
           >
@@ -96,11 +128,25 @@ const TopNav = () => {
               textTransform: 'none',
               fontSize: '0.95rem',
               px: 2,
-              borderRadius: 2,
+              borderRadius: 0,
               transition: 'all 0.3s ease',
+              position: 'relative',
+              '&::after': {
+                content: '""',
+                position: 'absolute',
+                bottom: 6,
+                left: '50%',
+                transform: 'translateX(-50%) scaleX(0)',
+                width: '60%',
+                height: 2,
+                bgcolor: 'white',
+                transition: 'transform 0.3s ease',
+              },
               '&:hover': {
-                background: 'rgba(255, 255, 255, 0.15)',
-                transform: 'translateY(-2px)',
+                background: 'transparent',
+                '&::after': {
+                  transform: 'translateX(-50%) scaleX(1)',
+                },
               },
             }}
           >
@@ -116,11 +162,25 @@ const TopNav = () => {
               textTransform: 'none',
               fontSize: '0.95rem',
               px: 2,
-              borderRadius: 2,
+              borderRadius: 0,
               transition: 'all 0.3s ease',
+              position: 'relative',
+              '&::after': {
+                content: '""',
+                position: 'absolute',
+                bottom: 6,
+                left: '50%',
+                transform: 'translateX(-50%) scaleX(0)',
+                width: '60%',
+                height: 2,
+                bgcolor: 'white',
+                transition: 'transform 0.3s ease',
+              },
               '&:hover': {
-                background: 'rgba(255, 255, 255, 0.15)',
-                transform: 'translateY(-2px)',
+                background: 'transparent',
+                '&::after': {
+                  transform: 'translateX(-50%) scaleX(1)',
+                },
               },
             }}
           >
