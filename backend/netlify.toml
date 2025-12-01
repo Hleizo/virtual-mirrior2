@@ -1,14 +1,15 @@
 [build]
   command = "pip install -r requirements.txt"
-  publish = "."
 
 [build.environment]
   PYTHON_VERSION = "3.11"
 
+[functions]
+  directory = "netlify/functions"
+  included_files = ["**/*.py", "requirements.txt", "models.py", "database.py", "crud.py", "schemas.py", "main_async.py"]
+
 [[redirects]]
   from = "/*"
-  to = "/.netlify/functions/api/:splat"
+  to = "/.netlify/functions/app/:splat"
   status = 200
-
-[functions]
-  directory = "functions"
+  force = true
