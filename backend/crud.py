@@ -77,12 +77,19 @@ async def get_session_by_id_string(db: AsyncSession, session_id: str) -> Optiona
     return await get_session(db, session_id)
 
 
-async def get_all_sessions(db: AsyncSession) -> List[SessionModel]:
+async def get_all_sessions(
+    db: AsyncSession, 
+    skip: int = 0, 
+    limit: int = 100
+) -> List[SessionModel]:
     """
-    Get all sessions ordered by most recent first
+    Get all sessions ordered by most recent first with pagination
     """
     result = await db.execute(
-        select(SessionModel).order_by(desc(SessionModel.started_at))
+        select(SessionModel)
+        .order_by(desc(SessionModel.started_at))
+        .offset(skip)
+        .limit(limit)
     )
     return list(result.scalars().all())
 

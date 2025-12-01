@@ -1,32 +1,31 @@
-# Backend Dependencies for Virtual Mirror API
+# Backend Dependencies for Virtual Mirror API - Render Production Ready
 
 # Core FastAPI dependencies
 fastapi==0.115.0
 uvicorn[standard]==0.32.0
 python-multipart==0.0.12
 pydantic==2.9.2
+pydantic-settings==2.5.2
 
 # Environment variables
 python-dotenv==1.0.0
 
-# CORS support
-fastapi-cors==0.0.6
+# Database (PostgreSQL/Supabase) - Async support with psycopg
+sqlalchemy[asyncio]==2.0.35
+psycopg[binary]==3.2.3
+alembic==1.13.3
+greenlet==3.1.1
 
-# PDF generation
+# PDF generation (optional - comment out if not needed to reduce build time)
 reportlab==4.2.5
 
-# Optional: Google Text-to-Speech
-gtts==2.5.3
-
-# Data processing
+# Data processing (optional - comment out if not needed)
 numpy==1.26.4
 pandas==2.2.3
 
 # Additional utilities
 python-dateutil==2.9.0
 
-# Database (PostgreSQL/Supabase) - Async support
-sqlalchemy[asyncio]==2.0.35
-asyncpg==0.29.0
-alembic==1.13.3
-greenlet==3.1.1
+# Production dependencies
+gunicorn==23.0.0
+mangum==0.18.0

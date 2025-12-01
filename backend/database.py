@@ -1,4 +1,6 @@
 import os
+import sys
+import asyncio
 from pathlib import Path
 from dotenv import load_dotenv
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
@@ -6,6 +8,10 @@ from sqlalchemy.orm import sessionmaker, DeclarativeBase
 from sqlalchemy.pool import NullPool
 from sqlalchemy import text
 from urllib.parse import urlparse
+
+# Fix for Windows psycopg compatibility - must be before any async operations
+if sys.platform == 'win32':
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 # Load .env from backend directory
 env_path = Path(__file__).parent / ".env"
@@ -35,22 +41,19 @@ if not DB_PASSWORD:
 if not DB_HOST:
     raise ValueError("SUPABASE_DB_HOST environment variable is not set. Please check your .env file.")
 
-DATABASE_URL = f"postgresql+asyncpg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
+# Use psycopg (async) instead of asyncpg for Render compatibility
+DATABASE_URL = f"postgresql+psycopg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
 
 print(f"🔗 Connecting to database at: {DB_USER}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
 print(f"📁 Loading .env from: {env_path}")
 print(f"✅ Environment variables loaded - DB_HOST: {DB_HOST}")
+print(f"🔌 Using psycopg driver for PostgreSQL async connection")
 
 engine = create_async_engine(
     DATABASE_URL, 
     echo=False, 
     future=True,
-    poolclass=NullPool,
-    connect_args={
-        "server_settings": {"jit": "off"},
-        "statement_cache_size": 0,
-        "prepared_statement_cache_size": 0
-    }
+    poolclass=NullPool
 )
 
 async_session_maker = sessionmaker(
