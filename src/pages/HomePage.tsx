@@ -157,15 +157,15 @@ const HomePage = () => {
             </Box>
 
             <Typography
-              variant="h5"
+              variant="body1"
               color="text.secondary"
               sx={{ 
-                mb: { xs: 2.5, sm: 3, md: 3.5 }, 
+                mb: { xs: 2, sm: 2.5 }, 
                 fontWeight: 500, 
-                maxWidth: { xs: '100%', sm: 550 }, 
+                maxWidth: { xs: '100%', sm: 500 }, 
                 mx: 'auto', 
-                lineHeight: 1.5,
-                fontSize: 'clamp(0.85rem, 2.2vw, 1.1rem)',
+                lineHeight: 1.4,
+                fontSize: 'clamp(0.8rem, 2vw, 0.95rem)',
                 px: { xs: 1, sm: 2 },
               }}
             >
@@ -174,193 +174,134 @@ const HomePage = () => {
 
             {/* User Type Selection */}
             <Stack 
-              spacing={{ xs: 2, md: 2.5 }} 
+              spacing={2} 
               sx={{ 
-                maxWidth: { xs: '100%', md: 650 }, 
+                maxWidth: 700, 
                 mx: 'auto',
+                width: '100%',
               }}
             >
+              {/* Parent Portal Card */}
               <Card 
                 sx={{ 
                   cursor: 'pointer',
-                  transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-                  border: '2px solid transparent',
-                  borderRadius: { xs: 3, md: 4 },
-                  background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.7) 100%)',
-                  backdropFilter: 'blur(10px)',
-                  boxShadow: '0 4px 20px rgba(25, 118, 210, 0.08)',
+                  transition: 'all 0.3s ease',
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderRadius: 3,
+                  bgcolor: 'background.paper',
+                  boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
                   '&:hover': {
-                    transform: { xs: 'translateY(-4px)', md: 'translateY(-8px) scale(1.01)' },
-                    boxShadow: '0 20px 40px rgba(25, 118, 210, 0.25)',
+                    transform: 'translateY(-3px)',
+                    boxShadow: '0 8px 24px rgba(25, 118, 210, 0.18)',
                     borderColor: 'primary.main',
-                    background: 'linear-gradient(135deg, rgba(255, 255, 255, 1) 0%, rgba(227, 242, 253, 0.5) 100%)',
                   },
                 }}
                 onClick={() => navigate('/parent/child-info')}
               >
-                <CardContent sx={{ p: { xs: 2.5, sm: 3, md: 3.5 } }}>
-                  <Stack 
-                    direction={{ xs: 'column', sm: 'row' }} 
-                    spacing={{ xs: 2, sm: 2.5 }} 
-                    alignItems="center"
-                  >
+                <CardContent sx={{ py: 2, px: 3 }}>
+                  <Stack direction="row" spacing={2.5} alignItems="center">
                     <Box
                       sx={{
-                        p: { xs: 1.75, md: 2.25 },
-                        borderRadius: 3,
+                        width: 52,
+                        height: 52,
+                        borderRadius: '50%',
                         background: 'linear-gradient(135deg, #1976d2 0%, #42a5f5 100%)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        boxShadow: '0 4px 16px rgba(25, 118, 210, 0.3)',
+                        flexShrink: 0,
                       }}
                     >
-                      <FamilyRestroomIcon sx={{ fontSize: { xs: 32, md: 38 }, color: 'white' }} />
+                      <FamilyRestroomIcon sx={{ fontSize: 28, color: 'white' }} />
                     </Box>
-                    <Box sx={{ textAlign: { xs: 'center', sm: 'left' }, flex: 1 }}>
-                      <Typography 
-                        variant="h5" 
-                        fontWeight={700} 
-                        gutterBottom 
-                        sx={{ 
-                          color: 'text.primary',
-                          fontSize: 'clamp(1.1rem, 3.5vw, 1.35rem)',
-                          mb: 0.5,
-                        }}
-                      >
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography variant="body1" fontWeight={600} sx={{ fontSize: '1.05rem', mb: 0.25 }}>
                         Parent Portal
                       </Typography>
-                      <Typography 
-                        variant="body1" 
-                        color="text.secondary" 
-                        sx={{ 
-                          fontWeight: 400,
-                          fontSize: { xs: '0.85rem', md: '0.95rem' },
-                        }}
-                      >
-                        Start a new assessment session for your child
+                      <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.9rem' }}>
+                        Start assessment for your child
                       </Typography>
                     </Box>
                     <Button 
                       variant="contained" 
-                      size="large"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate('/parent/child-info');
-                      }}
+                      size="medium"
+                      onClick={(e) => { e.stopPropagation(); navigate('/parent/child-info'); }}
                       sx={{
                         textTransform: 'none',
                         fontWeight: 600,
-                        px: { xs: 2.5, md: 3.5 },
-                        py: { xs: 1, md: 1.25 },
+                        px: 3,
+                        py: 0.875,
                         borderRadius: 2.5,
+                        minWidth: 100,
                         background: 'linear-gradient(135deg, #1976d2 0%, #42a5f5 100%)',
-                        boxShadow: '0 4px 16px rgba(25, 118, 210, 0.3)',
-                        transition: 'all 0.3s ease',
-                        width: { xs: '100%', sm: 'auto' },
-                        minWidth: { sm: '130px' },
-                        fontSize: { xs: '0.9rem', md: '0.95rem' },
-                        '&:hover': {
-                          background: 'linear-gradient(135deg, #1565c0 0%, #1976d2 100%)',
-                          boxShadow: '0 6px 20px rgba(25, 118, 210, 0.4)',
-                          transform: 'translateY(-2px)',
-                        }
+                        fontSize: '0.9rem',
                       }}
                     >
-                      Start Session
+                      Start
                     </Button>
                   </Stack>
                 </CardContent>
               </Card>
 
+              {/* Admin Dashboard Card */}
               <Card 
                 sx={{ 
                   cursor: 'pointer',
-                  transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-                  border: '2px solid transparent',
-                  borderRadius: { xs: 3, md: 4 },
-                  background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.7) 100%)',
-                  backdropFilter: 'blur(10px)',
-                  boxShadow: '0 4px 20px rgba(156, 39, 176, 0.08)',
+                  transition: 'all 0.3s ease',
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderRadius: 3,
+                  bgcolor: 'background.paper',
+                  boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
                   '&:hover': {
-                    transform: { xs: 'translateY(-4px)', md: 'translateY(-8px) scale(1.01)' },
-                    boxShadow: '0 20px 40px rgba(156, 39, 176, 0.25)',
+                    transform: 'translateY(-3px)',
+                    boxShadow: '0 8px 24px rgba(156, 39, 176, 0.18)',
                     borderColor: 'secondary.main',
-                    background: 'linear-gradient(135deg, rgba(255, 255, 255, 1) 0%, rgba(243, 229, 245, 0.5) 100%)',
                   },
                 }}
                 onClick={() => navigate('/admin')}
               >
-                <CardContent sx={{ p: { xs: 2.5, sm: 3, md: 3.5 } }}>
-                  <Stack 
-                    direction={{ xs: 'column', sm: 'row' }} 
-                    spacing={{ xs: 2, sm: 2.5 }} 
-                    alignItems="center"
-                  >
+                <CardContent sx={{ py: 2, px: 3 }}>
+                  <Stack direction="row" spacing={2.5} alignItems="center">
                     <Box
                       sx={{
-                        p: { xs: 1.75, md: 2.25 },
-                        borderRadius: 3,
+                        width: 52,
+                        height: 52,
+                        borderRadius: '50%',
                         background: 'linear-gradient(135deg, #9c27b0 0%, #ba68c8 100%)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        boxShadow: '0 4px 16px rgba(156, 39, 176, 0.3)',
+                        flexShrink: 0,
                       }}
                     >
-                      <AdminPanelSettingsIcon sx={{ fontSize: { xs: 32, md: 38 }, color: 'white' }} />
+                      <AdminPanelSettingsIcon sx={{ fontSize: 28, color: 'white' }} />
                     </Box>
-                    <Box sx={{ textAlign: { xs: 'center', sm: 'left' }, flex: 1 }}>
-                      <Typography 
-                        variant="h5" 
-                        fontWeight={700} 
-                        gutterBottom 
-                        sx={{ 
-                          color: 'text.primary',
-                          fontSize: 'clamp(1.1rem, 3.5vw, 1.35rem)',
-                          mb: 0.5,
-                        }}
-                      >
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography variant="body1" fontWeight={600} sx={{ fontSize: '1.05rem', mb: 0.25 }}>
                         Admin Dashboard
                       </Typography>
-                      <Typography 
-                        variant="body1" 
-                        color="text.secondary" 
-                        sx={{ 
-                          fontWeight: 400,
-                          fontSize: { xs: '0.85rem', md: '0.95rem' },
-                        }}
-                      >
-                        View all sessions and analyze patient data
+                      <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.9rem' }}>
+                        View sessions and patient data
                       </Typography>
                     </Box>
                     <Button 
                       variant="contained"
-                      size="large"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate('/admin');
-                      }}
+                      size="medium"
+                      onClick={(e) => { e.stopPropagation(); navigate('/admin'); }}
                       sx={{
                         textTransform: 'none',
                         fontWeight: 600,
-                        px: { xs: 2.5, md: 3.5 },
-                        py: { xs: 1, md: 1.25 },
+                        px: 3,
+                        py: 0.875,
                         borderRadius: 2.5,
+                        minWidth: 100,
                         background: 'linear-gradient(135deg, #9c27b0 0%, #ba68c8 100%)',
-                        boxShadow: '0 4px 16px rgba(156, 39, 176, 0.3)',
-                        transition: 'all 0.3s ease',
-                        width: { xs: '100%', sm: 'auto' },
-                        minWidth: { sm: '130px' },
-                        fontSize: { xs: '0.9rem', md: '0.95rem' },
-                        '&:hover': {
-                          background: 'linear-gradient(135deg, #7b1fa2 0%, #9c27b0 100%)',
-                          boxShadow: '0 6px 20px rgba(156, 39, 176, 0.4)',
-                          transform: 'translateY(-2px)',
-                        }
+                        fontSize: '0.9rem',
                       }}
                     >
-                      View Dashboard
+                      View
                     </Button>
                   </Stack>
                 </CardContent>
@@ -370,94 +311,60 @@ const HomePage = () => {
               <Card 
                 sx={{ 
                   cursor: 'pointer',
-                  transition: 'all 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-                  border: '2px solid transparent',
-                  borderRadius: { xs: 3, md: 4 },
-                  background: 'linear-gradient(135deg, rgba(255, 255, 255, 0.9) 0%, rgba(255, 255, 255, 0.7) 100%)',
-                  backdropFilter: 'blur(10px)',
-                  boxShadow: '0 4px 20px rgba(46, 125, 50, 0.08)',
+                  transition: 'all 0.3s ease',
+                  border: '1px solid',
+                  borderColor: 'divider',
+                  borderRadius: 3,
+                  bgcolor: 'background.paper',
+                  boxShadow: '0 2px 12px rgba(0,0,0,0.06)',
                   '&:hover': {
-                    transform: { xs: 'translateY(-4px)', md: 'translateY(-8px) scale(1.01)' },
-                    boxShadow: '0 20px 40px rgba(46, 125, 50, 0.25)',
+                    transform: 'translateY(-3px)',
+                    boxShadow: '0 8px 24px rgba(46, 125, 50, 0.18)',
                     borderColor: 'success.main',
-                    background: 'linear-gradient(135deg, rgba(255, 255, 255, 1) 0%, rgba(232, 245, 233, 0.5) 100%)',
                   },
                 }}
                 onClick={() => navigate('/about#mission')}
               >
-                <CardContent sx={{ p: { xs: 2.5, sm: 3, md: 3.5 } }}>
-                  <Stack 
-                    direction={{ xs: 'column', sm: 'row' }} 
-                    spacing={{ xs: 2, sm: 3 }} 
-                    alignItems="center"
-                  >
+                <CardContent sx={{ py: 2, px: 3 }}>
+                  <Stack direction="row" spacing={2.5} alignItems="center">
                     <Box 
                       sx={{ 
-                        p: 2, 
-                        borderRadius: '50%', 
+                        width: 52,
+                        height: 52,
+                        borderRadius: '50%',
                         background: 'linear-gradient(135deg, #2e7d32 0%, #4caf50 100%)',
                         display: 'flex',
                         alignItems: 'center',
                         justifyContent: 'center',
-                        minWidth: { xs: 60, md: 70 },
-                        height: { xs: 60, md: 70 },
-                        transition: 'all 0.3s ease',
-                        boxShadow: '0 4px 16px rgba(46, 125, 50, 0.3)',
+                        flexShrink: 0,
                       }}
                     >
-                      <FavoriteIcon sx={{ fontSize: { xs: 32, md: 38 }, color: 'white' }} />
+                      <FavoriteIcon sx={{ fontSize: 28, color: 'white' }} />
                     </Box>
-                    <Box sx={{ textAlign: { xs: 'center', sm: 'left' }, flex: 1 }}>
-                      <Typography 
-                        variant="h5" 
-                        fontWeight={700} 
-                        gutterBottom 
-                        sx={{ 
-                          color: 'text.primary',
-                          fontSize: 'clamp(1.1rem, 3.5vw, 1.35rem)',
-                          mb: 0.5,
-                        }}
-                      >
+                    <Box sx={{ flex: 1, minWidth: 0 }}>
+                      <Typography variant="body1" fontWeight={600} sx={{ fontSize: '1.05rem', mb: 0.25 }}>
                         Our Mission
                       </Typography>
-                      <Typography 
-                        variant="body1" 
-                        color="text.secondary" 
-                        sx={{ 
-                          fontWeight: 400,
-                          fontSize: { xs: '0.85rem', md: '0.95rem' },
-                        }}
-                      >
-                        Learn about our commitment to early detection
+                      <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.9rem' }}>
+                        Learn about our commitment
                       </Typography>
                     </Box>
                     <Button 
                       variant="contained"
-                      size="large"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate('/about#mission');
-                      }}
+                      size="medium"
+                      onClick={(e) => { e.stopPropagation(); navigate('/about#mission'); }}
                       sx={{
                         textTransform: 'none',
                         fontWeight: 600,
-                        px: { xs: 2.5, md: 3.5 },
-                        py: { xs: 1, md: 1.25 },
+                        px: 3,
+                        py: 0.875,
                         borderRadius: 2.5,
+                        minWidth: 100,
                         background: 'linear-gradient(135deg, #2e7d32 0%, #4caf50 100%)',
-                        boxShadow: '0 4px 16px rgba(46, 125, 50, 0.3)',
-                        transition: 'all 0.3s ease',
-                        width: { xs: '100%', sm: 'auto' },
-                        minWidth: { sm: '130px' },
-                        fontSize: { xs: '0.9rem', md: '0.95rem' },
-                        '&:hover': {
-                          background: 'linear-gradient(135deg, #1b5e20 0%, #2e7d32 100%)',
-                          boxShadow: '0 6px 20px rgba(46, 125, 50, 0.4)',
-                          transform: 'translateY(-2px)',
-                        }
+                        fontSize: '0.9rem',
                       }}
                     >
-                      Learn More
+                      Learn
                     </Button>
                   </Stack>
                 </CardContent>

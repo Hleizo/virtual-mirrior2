@@ -64,25 +64,25 @@ const ChildInfoPage = () => {
   };
 
   return (
-    <Container maxWidth="md" sx={{ py: 8 }}>
-      <Paper elevation={0} sx={{ p: 5, borderRadius: 3, border: '1px solid', borderColor: 'divider', boxShadow: '0 8px 32px rgba(0,0,0,0.08)' }}>
+    <Container maxWidth="sm" sx={{ py: 3 }}>
+      <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', boxShadow: '0 4px 16px rgba(0,0,0,0.06)' }}>
         {/* Header */}
-        <Box sx={{ display: 'flex', alignItems: 'center', mb: 5, pb: 3, borderBottom: '2px solid', borderColor: 'divider' }}>
-          <Box sx={{ p: 1.5, borderRadius: 2, bgcolor: 'primary.50', display: 'flex', alignItems: 'center', mr: 2 }}>
-            <PersonIcon sx={{ fontSize: 36, color: 'primary.main' }} />
+        <Box sx={{ display: 'flex', alignItems: 'center', mb: 3, pb: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+          <Box sx={{ p: 1, borderRadius: 1.5, bgcolor: 'primary.50', display: 'flex', alignItems: 'center', mr: 1.5 }}>
+            <PersonIcon sx={{ fontSize: 28, color: 'primary.main' }} />
           </Box>
           <Box>
-            <Typography variant="h4" component="h1" fontWeight={700} sx={{ mb: 0.5, color: 'text.primary' }}>
+            <Typography variant="h6" component="h1" fontWeight={600} sx={{ color: 'text.primary' }}>
               Child Information
             </Typography>
-            <Typography variant="body1" color="text.secondary" sx={{ fontWeight: 400 }}>
-              Please provide basic information before starting the assessment
+            <Typography variant="body2" color="text.secondary">
+              Enter details before starting assessment
             </Typography>
           </Box>
         </Box>
 
         {/* Form */}
-        <Stack spacing={3.5}>
+        <Stack spacing={2}>
           {/* Child Name - Required */}
           <TextField
             fullWidth
@@ -208,19 +208,18 @@ const ChildInfoPage = () => {
           />
 
           {/* Action Buttons */}
-          <Box sx={{ display: 'flex', gap: 2, pt: 3, mt: 2, borderTop: '1px solid', borderColor: 'divider' }}>
+          <Box sx={{ display: 'flex', gap: 1.5, pt: 2, mt: 1, borderTop: '1px solid', borderColor: 'divider' }}>
             <Button
               variant="outlined"
-              size="large"
+              size="medium"
               onClick={() => navigate('/')}
               sx={{ 
                 flex: 1, 
                 textTransform: 'none', 
-                fontWeight: 600, 
-                py: 1.5,
-                borderWidth: '1.5px',
+                fontWeight: 500, 
+                py: 1,
+                fontSize: '0.9rem',
                 '&:hover': {
-                  borderWidth: '1.5px',
                   bgcolor: 'rgba(25, 118, 210, 0.04)'
                 }
               }}
@@ -229,23 +228,22 @@ const ChildInfoPage = () => {
             </Button>
             <Button
               variant="contained"
-              size="large"
+              size="medium"
               endIcon={<ArrowForwardIcon />}
               onClick={handleSubmit}
               sx={{ 
                 flex: 1, 
                 textTransform: 'none', 
-                fontWeight: 600, 
-                py: 1.5,
-                boxShadow: '0 4px 12px rgba(25, 118, 210, 0.25)',
+                fontWeight: 500, 
+                py: 1,
+                fontSize: '0.9rem',
+                boxShadow: '0 2px 8px rgba(25, 118, 210, 0.2)',
                 '&:hover': {
-                  boxShadow: '0 6px 16px rgba(25, 118, 210, 0.35)',
-                  transform: 'translateY(-1px)',
-                  transition: 'all 0.2s ease'
+                  boxShadow: '0 4px 12px rgba(25, 118, 210, 0.3)',
                 }
               }}
             >
-              Continue to Session
+              Continue
             </Button>
           </Box>
         </Stack>

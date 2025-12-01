@@ -410,26 +410,28 @@ const SessionPageOrchestrator = () => {
   };
 
   return (
-    <Container maxWidth="lg" sx={{ py: { xs: 1, md: 2 } }}>
+    <Container maxWidth="md" sx={{ py: 1 }}>
       {/* Top Control Bar */}
-      <Paper elevation={1} sx={{ p: 2, mb: 2, borderRadius: 2 }}>
-        <Stack direction="row" spacing={2} alignItems="center" flexWrap="wrap" useFlexGap>
+      <Paper elevation={1} sx={{ p: 1.5, mb: 1.5, borderRadius: 2 }}>
+        <Stack direction="row" spacing={1.5} alignItems="center" flexWrap="wrap" useFlexGap>
           <Button
             variant={isRunning ? "outlined" : "contained"}
             color={isRunning ? "error" : "primary"}
             startIcon={isRunning ? <StopIcon /> : <PlayArrowIcon />}
             onClick={isRunning ? handleStop : handleStart}
-            size="large"
+            size="medium"
+            sx={{ fontSize: '0.85rem' }}
           >
-            {isRunning ? "Stop" : "Start Assessment"}
+            {isRunning ? "Stop" : "Start"}
           </Button>
           
           <IconButton
             onClick={handleToggleVoice}
             color={voiceMuted ? 'default' : 'primary'}
+            size="small"
             sx={{ border: '1px solid', borderColor: 'divider' }}
           >
-            {voiceMuted ? <VolumeOffIcon /> : <VolumeUpIcon />}
+            {voiceMuted ? <VolumeOffIcon fontSize="small" /> : <VolumeUpIcon fontSize="small" />}
           </IconButton>
 
           {isRunning && taskStatus === 'running' && (
@@ -438,25 +440,27 @@ const SessionPageOrchestrator = () => {
               startIcon={<RestartAltIcon />}
               onClick={handleRestartTask}
               size="small"
+              sx={{ fontSize: '0.8rem' }}
             >
-              Restart Task
+              Restart
             </Button>
           )}
           
           <Box sx={{ flexGrow: 1 }} />
           
           <Chip 
-            label={`Task ${currentTaskIndex + 1} of ${TASK_SEQUENCE.length}`}
+            label={`${currentTaskIndex + 1}/${TASK_SEQUENCE.length}`}
             color="primary"
             variant="outlined"
+            size="small"
           />
         </Stack>
       </Paper>
 
       {/* Task Title */}
       {isRunning && (
-        <Box sx={{ mb: 2, textAlign: 'center' }}>
-          <Typography variant="h4" fontWeight={700} color="primary">
+        <Box sx={{ mb: 1, textAlign: 'center' }}>
+          <Typography variant="subtitle1" fontWeight={600} color="primary" sx={{ fontSize: '0.95rem' }}>
             Task {currentTaskIndex + 1}: {currentTaskName.replace('_', ' ').toUpperCase()}
           </Typography>
         </Box>
@@ -467,27 +471,27 @@ const SessionPageOrchestrator = () => {
         <Alert 
           severity="info" 
           sx={{ 
-            mb: 2, 
-            fontSize: '1.1rem',
+            mb: 1.5, 
+            py: 0.5,
             '& .MuiAlert-message': { width: '100%' }
           }}
         >
-          <Typography variant="h6" fontWeight={600} gutterBottom>
+          <Typography variant="body2" fontWeight={500}>
             {taskUpdate.message}
           </Typography>
           <LinearProgress 
             variant="determinate" 
             value={taskUpdate.progress * 100} 
-            sx={{ mt: 1, height: 8, borderRadius: 1 }}
+            sx={{ mt: 0.5, height: 6, borderRadius: 1 }}
           />
-          <Typography variant="body2" sx={{ mt: 0.5 }}>
-            {Math.round(taskUpdate.progress * 100)}% Complete
+          <Typography variant="caption" sx={{ mt: 0.25, display: 'block' }}>
+            {Math.round(taskUpdate.progress * 100)}%
           </Typography>
         </Alert>
       )}
 
       {/* Video Block */}
-      <Box sx={{ mb: 2, position: 'relative' }}>
+      <Box sx={{ mb: 1.5, position: 'relative' }}>
         <CameraFeed onVideoReady={handleVideoReady} autoStart={true} />
         <PoseDetector 
           running={isRunning && taskStatus === 'running'}
@@ -499,38 +503,37 @@ const SessionPageOrchestrator = () => {
 
       {/* Success Feedback */}
       {taskStatus === 'success' && (
-        <Fade in timeout={500}>
+        <Fade in timeout={300}>
           <Paper 
-            elevation={3} 
+            elevation={2} 
             sx={{ 
-              p: 3, 
-              mb: 2, 
+              p: 2, 
+              mb: 1.5, 
               bgcolor: 'success.light', 
               color: 'success.contrastText',
               textAlign: 'center',
               borderRadius: 2
             }}
           >
-            <CheckCircleIcon sx={{ fontSize: 60, mb: 1 }} />
-            <Typography variant="h5" fontWeight={700} gutterBottom>
+            <CheckCircleIcon sx={{ fontSize: 40, mb: 0.5 }} />
+            <Typography variant="subtitle1" fontWeight={600} gutterBottom>
               Task Complete! 🎉
-            </Typography>
-            <Typography variant="body1" sx={{ mb: 2 }}>
-              Great job! You completed this task successfully.
             </Typography>
             <Button
               variant="contained"
               color="inherit"
-              size="large"
+              size="medium"
               onClick={handleContinue}
               fullWidth
               sx={{ 
+                mt: 1,
                 bgcolor: 'white', 
                 color: 'success.main',
+                fontSize: '0.85rem',
                 '&:hover': { bgcolor: 'grey.100' }
               }}
             >
-              {currentTaskIndex < TASK_SEQUENCE.length - 1 ? 'Continue to Next Task' : 'View Results'}
+              {currentTaskIndex < TASK_SEQUENCE.length - 1 ? 'Next Task' : 'View Results'}
             </Button>
           </Paper>
         </Fade>
@@ -538,58 +541,60 @@ const SessionPageOrchestrator = () => {
 
       {/* Failure Feedback */}
       {taskStatus === 'failed' && (
-        <Fade in timeout={500}>
+        <Fade in timeout={300}>
           <Paper 
-            elevation={3} 
+            elevation={2} 
             sx={{ 
-              p: 3, 
-              mb: 2, 
+              p: 2, 
+              mb: 1.5, 
               bgcolor: 'error.light', 
               color: 'error.contrastText',
               textAlign: 'center',
               borderRadius: 2
             }}
           >
-            <ErrorOutlineIcon sx={{ fontSize: 60, mb: 1 }} />
-            <Typography variant="h5" fontWeight={700} gutterBottom>
+            <ErrorOutlineIcon sx={{ fontSize: 40, mb: 0.5 }} />
+            <Typography variant="subtitle1" fontWeight={600} gutterBottom>
               Task Not Completed
             </Typography>
-            <Typography variant="body1" sx={{ mb: 2 }}>
+            <Typography variant="body2" sx={{ mb: 1.5 }}>
               {retryCount < MAX_RETRIES 
-                ? "Don't worry! You can try this task again." 
-                : "That's okay! Let's move to the next task."}
+                ? "You can try again." 
+                : "Let's move on."}
             </Typography>
-            <Stack spacing={2}>
+            <Stack spacing={1}>
               {retryCount < MAX_RETRIES && (
                 <Button
                   variant="contained"
                   color="inherit"
-                  size="large"
+                  size="small"
                   onClick={handleRetryTask}
                   fullWidth
                   sx={{ 
                     bgcolor: 'white', 
                     color: 'error.main',
+                    fontSize: '0.85rem',
                     '&:hover': { bgcolor: 'grey.100' }
                   }}
                 >
-                  Try Again ({MAX_RETRIES - retryCount} {MAX_RETRIES - retryCount === 1 ? 'retry' : 'retries'} left)
+                  Try Again ({MAX_RETRIES - retryCount} left)
                 </Button>
               )}
               <Button
                 variant="outlined"
                 color="inherit"
-                size="large"
+                size="small"
                 onClick={handleNextTask}
                 fullWidth
                 disabled={currentTaskIndex >= TASK_SEQUENCE.length - 1}
                 sx={{ 
                   borderColor: 'white',
                   color: 'white',
+                  fontSize: '0.85rem',
                   '&:hover': { borderColor: 'grey.100', bgcolor: 'rgba(255,255,255,0.1)' }
                 }}
               >
-                Skip to Next Task
+                Skip Task
               </Button>
             </Stack>
           </Paper>
