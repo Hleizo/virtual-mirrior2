@@ -35,6 +35,79 @@ function mapPointToCanvas(
   return { x: px, y: py };
 }
 
+/**
+ * Body part color mapping for engaging skeleton visualization
+ * Colors are chosen to be visually appealing and distinct for children
+ */
+const BODY_PART_COLORS: Record<string, string> = {
+  // Face & head - Soft blue
+  face: 'rgba(100, 181, 246, 0.8)',
+  // Torso - Purple gradient
+  torso: 'rgba(186, 104, 200, 0.8)',
+  // Left arm - Teal
+  leftArm: 'rgba(77, 182, 172, 0.8)',
+  // Right arm - Coral
+  rightArm: 'rgba(255, 138, 101, 0.8)',
+  // Left leg - Light blue
+  leftLeg: 'rgba(79, 195, 247, 0.8)',
+  // Right leg - Light green
+  rightLeg: 'rgba(129, 199, 132, 0.8)',
+  // Default - White
+  default: 'rgba(255, 255, 255, 0.6)',
+};
+
+/**
+ * Get the color for a connection based on the body part it belongs to
+ */
+function getConnectionColor(startIdx: number, endIdx: number): string {
+  // Face connections (0-10)
+  if (startIdx <= 10 && endIdx <= 10) return BODY_PART_COLORS.face;
+  
+  // Left arm (11, 13, 15, 17, 19, 21)
+  if ([11, 13, 15, 17, 19, 21].includes(startIdx) && [11, 13, 15, 17, 19, 21].includes(endIdx)) {
+    return BODY_PART_COLORS.leftArm;
+  }
+  
+  // Right arm (12, 14, 16, 18, 20, 22)
+  if ([12, 14, 16, 18, 20, 22].includes(startIdx) && [12, 14, 16, 18, 20, 22].includes(endIdx)) {
+    return BODY_PART_COLORS.rightArm;
+  }
+  
+  // Torso (11, 12, 23, 24)
+  if ([11, 12, 23, 24].includes(startIdx) && [11, 12, 23, 24].includes(endIdx)) {
+    return BODY_PART_COLORS.torso;
+  }
+  
+  // Left leg (23, 25, 27, 29, 31)
+  if ([23, 25, 27, 29, 31].includes(startIdx) && [23, 25, 27, 29, 31].includes(endIdx)) {
+    return BODY_PART_COLORS.leftLeg;
+  }
+  
+  // Right leg (24, 26, 28, 30, 32)
+  if ([24, 26, 28, 30, 32].includes(startIdx) && [24, 26, 28, 30, 32].includes(endIdx)) {
+    return BODY_PART_COLORS.rightLeg;
+  }
+  
+  // Shoulder to hip connections (torso)
+  if ((startIdx === 11 && endIdx === 23) || (startIdx === 12 && endIdx === 24)) {
+    return BODY_PART_COLORS.torso;
+  }
+  
+  return BODY_PART_COLORS.default;
+}
+
+/**
+ * Get the color for a landmark point
+ */
+function getLandmarkColor(idx: number): string {
+  if (idx <= 10) return BODY_PART_COLORS.face;
+  if ([11, 13, 15, 17, 19, 21].includes(idx)) return BODY_PART_COLORS.leftArm;
+  if ([12, 14, 16, 18, 20, 22].includes(idx)) return BODY_PART_COLORS.rightArm;
+  if ([23, 25, 27, 29, 31].includes(idx)) return BODY_PART_COLORS.leftLeg;
+  if ([24, 26, 28, 30, 32].includes(idx)) return BODY_PART_COLORS.rightLeg;
+  return BODY_PART_COLORS.default;
+}
+
 export const PoseDetector = ({
   running,
   videoRef,
@@ -215,28 +288,50 @@ export const PoseDetector = ({
               }
               
               // Draw landmarks manually with proper coordinate mapping
-              ctx.fillStyle = '#00FF00';
-              ctx.strokeStyle = '#00FF00';
-              ctx.lineWidth = 2;
+              // Using color-coded body parts for engaging visualization
+              ctx.lineWidth = 3;
               
-              // Draw each landmark
-              for (const landmark of landmarks) {
-                const point = mapPointToCanvas(landmark, videoElement, rect);
-                ctx.beginPath();
-                ctx.arc(point.x, point.y, 4, 0, 2 * Math.PI);
-                ctx.fill();
-              }
-              
-              // Draw connections
+              // Draw connections first (so landmarks appear on top)
+              // Using semi-transparent colored lines for each body part
               const connections = PoseLandmarker.POSE_CONNECTIONS;
               for (const connection of connections) {
                 const start = mapPointToCanvas(landmarks[connection.start], videoElement, rect);
                 const end = mapPointToCanvas(landmarks[connection.end], videoElement, rect);
                 
+                // Get color based on body part
+                const color = getConnectionColor(connection.start, connection.end);
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 3;
+                
                 ctx.beginPath();
                 ctx.moveTo(start.x, start.y);
                 ctx.lineTo(end.x, end.y);
                 ctx.stroke();
+              }
+              
+              // Draw each landmark with body-part specific colors
+              for (let i = 0; i < landmarks.length; i++) {
+                const landmark = landmarks[i];
+                const point = mapPointToCanvas(landmark, videoElement, rect);
+                const color = getLandmarkColor(i);
+                
+                // Outer glow effect
+                ctx.fillStyle = color.replace('0.8', '0.3');
+                ctx.beginPath();
+                ctx.arc(point.x, point.y, 8, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                // Inner solid point
+                ctx.fillStyle = color;
+                ctx.beginPath();
+                ctx.arc(point.x, point.y, 5, 0, 2 * Math.PI);
+                ctx.fill();
+                
+                // White center for visibility
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+                ctx.beginPath();
+                ctx.arc(point.x, point.y, 2, 0, 2 * Math.PI);
+                ctx.fill();
               }
             }
           }

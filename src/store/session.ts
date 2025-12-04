@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
-export type TaskName = 'raise_hand' | 'one_leg' | 'walk' | 'jump';
+export type TaskName = 'raise_hand' | 'one_leg' | 'walk' | 'jump' | 'tiptoe' | 'squat';
 
 export type TaskMetric = {
   task: TaskName;

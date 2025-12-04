@@ -22,6 +22,7 @@ import {
   TextField,
   Tab,
   Tabs,
+  Tooltip as MuiTooltip,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import PersonIcon from '@mui/icons-material/Person';
@@ -29,6 +30,9 @@ import AssessmentIcon from '@mui/icons-material/Assessment';
 import AnnouncementIcon from '@mui/icons-material/Announcement';
 import SaveIcon from '@mui/icons-material/Save';
 import PrintIcon from '@mui/icons-material/Print';
+import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import WarningIcon from '@mui/icons-material/Warning';
+import CancelIcon from '@mui/icons-material/Cancel';
 import { getSession, getSessionTasks, getTaskMetrics, getFollowupSessions } from '../services/api';
 import {
   RadarChart,
@@ -189,92 +193,497 @@ const ClinicianView = () => {
     const oneLegs = session.tasks.find(t => t.task_name === 'one_leg');
     const raiseHand = session.tasks.find(t => t.task_name === 'raise_hand');
     const walk = session.tasks.find(t => t.task_name === 'walk');
+    const tiptoe = session.tasks.find(t => t.task_name === 'tiptoe');
+    const squat = session.tasks.find(t => t.task_name === 'squat');
 
     const risks = [];
     
-    if (oneLegs?.metrics.holdTime && oneLegs.metrics.holdTime < 5) {
-      risks.push({ area: 'Balance', level: 'High', detail: `Hold time: ${oneLegs.metrics.holdTime}s (< 5s)` });
+    // Balance assessment
+    if (oneLegs?.metrics.holdTime !== undefined && oneLegs.metrics.holdTime < 3) {
+      risks.push({ area: 'Balance', level: 'High', detail: `Hold time: ${oneLegs.metrics.holdTime.toFixed(1)}s (< 3s)` });
+    } else if (oneLegs?.metrics.holdTime !== undefined && oneLegs.metrics.holdTime < 5) {
+      risks.push({ area: 'Balance', level: 'Moderate', detail: `Hold time: ${oneLegs.metrics.holdTime.toFixed(1)}s (< 5s)` });
     }
-    if (oneLegs?.metrics.wobbleCount && oneLegs.metrics.wobbleCount > 3) {
-      risks.push({ area: 'Stability', level: 'Moderate', detail: `Wobble count: ${oneLegs.metrics.wobbleCount}` });
+    
+    // Stability assessment (using swayIndex)
+    if (oneLegs?.metrics.swayIndex !== undefined && oneLegs.metrics.swayIndex > 0.1) {
+      risks.push({ area: 'Stability', level: 'Moderate', detail: `Sway index: ${(oneLegs.metrics.swayIndex * 100).toFixed(1)}%` });
     }
-    if (raiseHand?.metrics.shoulderFlexionMax && raiseHand.metrics.shoulderFlexionMax < 120) {
-      risks.push({ area: 'Shoulder ROM', level: 'High', detail: `Max flexion: ${raiseHand.metrics.shoulderFlexionMax}° (< 120°)` });
+    
+    // Shoulder ROM assessment
+    const maxShoulder = Math.max(raiseHand?.metrics.leftShoulderAngle || 0, raiseHand?.metrics.rightShoulderAngle || 0);
+    if (maxShoulder > 0 && maxShoulder < 120) {
+      risks.push({ area: 'Shoulder ROM', level: 'High', detail: `Max flexion: ${maxShoulder.toFixed(0)}° (< 120°)` });
+    } else if (maxShoulder > 0 && maxShoulder < 150) {
+      risks.push({ area: 'Shoulder ROM', level: 'Moderate', detail: `Max flexion: ${maxShoulder.toFixed(0)}° (< 150°)` });
     }
-    if (walk?.metrics.symmetryPercent && walk.metrics.symmetryPercent < 80) {
-      risks.push({ area: 'Gait Symmetry', level: 'Moderate', detail: `Symmetry: ${walk.metrics.symmetryPercent}%` });
+    
+    // Gait assessment
+    if (walk?.status === 'failed') {
+      risks.push({ area: 'Gait', level: 'High', detail: 'Walk task not completed' });
+    }
+    
+    // Task failures
+    if (tiptoe?.status === 'failed') {
+      risks.push({ area: 'Tiptoe Balance', level: 'Moderate', detail: 'Tiptoe task not completed' });
+    }
+    if (squat?.status === 'failed') {
+      risks.push({ area: 'Lower Body Strength', level: 'Moderate', detail: 'Squat task not completed' });
     }
 
     return risks;
   };
 
-  // Prepare radar chart data
+  // Assess task status: 'passed' | 'partial' | 'failed' based on metrics
+  type TaskStatus = 'passed' | 'partial' | 'failed';
+  
+  const getTaskMetricStatus = (task: SessionData['tasks'][0]): { status: TaskStatus; passedCount: number; failedCount: number; details: string[] } => {
+    const { task_name, metrics, status } = task;
+    const details: string[] = [];
+    let passedCount = 0;
+    let failedCount = 0;
+
+    if (status === 'success') {
+      return { status: 'passed', passedCount: Object.keys(metrics).length, failedCount: 0, details: ['All metrics within acceptable range'] };
+    }
+
+    // Check individual metrics against thresholds
+    switch (task_name) {
+      case 'raise_hand': {
+        const REQUIRED_ANGLE = 90;
+        const REQUIRED_HOLD = 2;
+        if (metrics.leftShoulderAngle !== undefined) {
+          if (metrics.leftShoulderAngle >= REQUIRED_ANGLE) { passedCount++; }
+          else { failedCount++; details.push(`Left shoulder: ${metrics.leftShoulderAngle.toFixed(0)}° < ${REQUIRED_ANGLE}°`); }
+        }
+        if (metrics.rightShoulderAngle !== undefined) {
+          if (metrics.rightShoulderAngle >= REQUIRED_ANGLE) { passedCount++; }
+          else { failedCount++; details.push(`Right shoulder: ${metrics.rightShoulderAngle.toFixed(0)}° < ${REQUIRED_ANGLE}°`); }
+        }
+        if (metrics.holdTime !== undefined) {
+          if (metrics.holdTime >= REQUIRED_HOLD) { passedCount++; }
+          else { failedCount++; details.push(`Hold time: ${metrics.holdTime.toFixed(1)}s < ${REQUIRED_HOLD}s`); }
+        }
+        break;
+      }
+      case 'jump': {
+        if (metrics.jumpHeightCm !== undefined || metrics.jumpHeightNorm !== undefined) {
+          const height = metrics.jumpHeightCm || metrics.jumpHeightNorm || 0;
+          if (height >= 5) { passedCount++; }
+          else { failedCount++; details.push(`Jump height: ${height.toFixed(1)} < 5`); }
+        }
+        if (metrics.isTwoFootedTakeoff !== undefined) {
+          if (metrics.isTwoFootedTakeoff === 1) { passedCount++; }
+          else { failedCount++; details.push('Takeoff not two-footed'); }
+        }
+        if (metrics.isTwoFootedLanding !== undefined) {
+          if (metrics.isTwoFootedLanding === 1) { passedCount++; }
+          else { failedCount++; details.push('Landing not two-footed'); }
+        }
+        break;
+      }
+      case 'walk': {
+        if (metrics.stepCount !== undefined) {
+          if (metrics.stepCount >= 6) { passedCount++; }
+          else { failedCount++; details.push(`Steps: ${metrics.stepCount} < 6`); }
+        }
+        if (metrics.symmetryPercent !== undefined) {
+          if (metrics.symmetryPercent >= 60) { passedCount++; }
+          else { failedCount++; details.push(`Symmetry: ${metrics.symmetryPercent.toFixed(0)}% < 60%`); }
+        }
+        break;
+      }
+      case 'one_leg': {
+        if (metrics.holdTime !== undefined) {
+          if (metrics.holdTime >= 3) { passedCount++; }
+          else { failedCount++; details.push(`Hold: ${metrics.holdTime.toFixed(1)}s < 3s`); }
+        }
+        if (metrics.swayIndex !== undefined) {
+          if (metrics.swayIndex <= 0.15) { passedCount++; }
+          else { failedCount++; details.push(`Sway: ${(metrics.swayIndex * 100).toFixed(0)}% > 15%`); }
+        }
+        break;
+      }
+      case 'tiptoe': {
+        if (metrics.holdTime !== undefined) {
+          if (metrics.holdTime >= 3) { passedCount++; }
+          else { failedCount++; details.push(`Hold: ${metrics.holdTime.toFixed(1)}s < 3s`); }
+        }
+        const plantarflexion = metrics.plantarflexionAngle || metrics.leftPlantarflexion || metrics.rightPlantarflexion;
+        if (plantarflexion !== undefined) {
+          if (plantarflexion >= 30) { passedCount++; }
+          else { failedCount++; details.push(`Plantarflexion: ${plantarflexion.toFixed(0)}° < 30°`); }
+        }
+        break;
+      }
+      case 'squat': {
+        const kneeAngle = metrics.minKneeAngle || metrics.kneeAngle;
+        if (kneeAngle !== undefined) {
+          if (kneeAngle < 130) { passedCount++; }
+          else { failedCount++; details.push(`Knee angle: ${kneeAngle.toFixed(0)}° > 130°`); }
+        }
+        if (metrics.holdTime !== undefined) {
+          if (metrics.holdTime >= 1) { passedCount++; }
+          else { failedCount++; details.push(`Hold: ${metrics.holdTime.toFixed(1)}s < 1s`); }
+        }
+        break;
+      }
+    }
+
+    // Determine overall status
+    let taskStatus: TaskStatus;
+    if (failedCount === 0 && passedCount > 0) {
+      taskStatus = 'passed';
+    } else if (passedCount > 0 && failedCount > 0) {
+      taskStatus = 'partial';
+    } else {
+      taskStatus = 'failed';
+    }
+
+    if (details.length === 0 && taskStatus === 'failed') {
+      details.push('Task requirements not met');
+    }
+
+    return { status: taskStatus, passedCount, failedCount, details };
+  };
+
+  // Render professional status indicator with tooltip
+  const renderStatusIndicator = (task: SessionData['tasks'][0], size: 'small' | 'medium' | 'large' = 'medium') => {
+    const { status, passedCount, failedCount, details } = getTaskMetricStatus(task);
+    const iconSize = size === 'small' ? 20 : size === 'medium' ? 28 : 36;
+    
+    const tooltipContent = (
+      <Box sx={{ p: 0.5 }}>
+        <Typography variant="subtitle2" sx={{ fontWeight: 600, mb: 0.5 }}>
+          {status === 'passed' ? 'All Metrics Passed' : status === 'partial' ? 'Partial Pass' : 'Failed'}
+        </Typography>
+        <Typography variant="caption" display="block" sx={{ mb: 0.5 }}>
+          {passedCount} passed, {failedCount} failed
+        </Typography>
+        {details.length > 0 && (
+          <Box component="ul" sx={{ m: 0, pl: 2 }}>
+            {details.slice(0, 4).map((d, i) => (
+              <Typography component="li" key={i} variant="caption">{d}</Typography>
+            ))}
+          </Box>
+        )}
+      </Box>
+    );
+
+    let icon;
+    let chipColor: 'success' | 'warning' | 'error';
+    let label: string;
+
+    switch (status) {
+      case 'passed':
+        icon = <CheckCircleIcon sx={{ fontSize: iconSize, color: 'success.main' }} />;
+        chipColor = 'success';
+        label = 'PASS';
+        break;
+      case 'partial':
+        icon = <WarningIcon sx={{ fontSize: iconSize, color: 'warning.main' }} />;
+        chipColor = 'warning';
+        label = 'PARTIAL';
+        break;
+      case 'failed':
+      default:
+        icon = <CancelIcon sx={{ fontSize: iconSize, color: 'error.main' }} />;
+        chipColor = 'error';
+        label = 'FAIL';
+    }
+
+    return (
+      <MuiTooltip title={tooltipContent} arrow placement="top">
+        <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, cursor: 'help' }}>
+          {icon}
+          {size !== 'small' && (
+            <Chip 
+              label={label} 
+              color={chipColor} 
+              size="small" 
+              sx={{ fontWeight: 600, minWidth: 70 }}
+            />
+          )}
+        </Box>
+      </MuiTooltip>
+    );
+  };
+
+  // Get detailed failure reasons for a task based on metrics and thresholds
+  const getTaskFailureReasons = (task: SessionData['tasks'][0]): string[] => {
+    const reasons: string[] = [];
+    const { task_name, metrics, status } = task;
+
+    if (status === 'success') return reasons;
+
+    switch (task_name) {
+      case 'raise_hand': {
+        const leftAngle = metrics.leftShoulderAngle;
+        const rightAngle = metrics.rightShoulderAngle;
+        const REQUIRED_ANGLE = 90;
+        
+        if (leftAngle !== undefined && leftAngle < REQUIRED_ANGLE) {
+          reasons.push(`Left shoulder angle was ${leftAngle.toFixed(0)}° (required ≥${REQUIRED_ANGLE}°)`);
+        }
+        if (rightAngle !== undefined && rightAngle < REQUIRED_ANGLE) {
+          reasons.push(`Right shoulder angle was ${rightAngle.toFixed(0)}° (required ≥${REQUIRED_ANGLE}°)`);
+        }
+        if (metrics.holdTime !== undefined && metrics.holdTime < 2) {
+          reasons.push(`Hold time was ${metrics.holdTime.toFixed(1)}s (required ≥2s)`);
+        }
+        if (reasons.length === 0 && status === 'failed') {
+          reasons.push('Arms not raised high enough or not held long enough');
+        }
+        break;
+      }
+
+      case 'jump': {
+        const jumpHeight = metrics.jumpHeightCm || metrics.jumpHeightNorm;
+        const REQUIRED_HEIGHT = 5; // cm or normalized units
+        const timeAirborne = metrics.timeAirborne;
+        
+        if (jumpHeight !== undefined && jumpHeight < REQUIRED_HEIGHT) {
+          const unit = metrics.jumpHeightCm !== undefined ? 'cm' : ' units';
+          reasons.push(`Jump height was ${jumpHeight.toFixed(1)}${unit} (required ≥${REQUIRED_HEIGHT}${unit})`);
+        }
+        if (timeAirborne !== undefined && timeAirborne < 0.1) {
+          reasons.push(`Time airborne was ${(timeAirborne * 1000).toFixed(0)}ms (too short)`);
+        }
+        if (metrics.isTwoFootedTakeoff === 0) {
+          reasons.push('Takeoff was not two-footed (required: both feet leave ground together)');
+        }
+        if (metrics.isTwoFootedLanding === 0) {
+          reasons.push('Landing was not two-footed (required: both feet land together)');
+        }
+        if (reasons.length === 0 && status === 'failed') {
+          reasons.push('Jump not detected or insufficient height');
+        }
+        break;
+      }
+
+      case 'walk': {
+        const stepCount = metrics.stepCount;
+        const REQUIRED_STEPS = 6;
+        const alternatingSteps = metrics.alternatingSteps;
+        const symmetry = metrics.symmetryPercent;
+        
+        if (stepCount !== undefined && stepCount < REQUIRED_STEPS) {
+          reasons.push(`Step count was ${stepCount} (required ≥${REQUIRED_STEPS} steps)`);
+        }
+        if (alternatingSteps !== undefined && stepCount !== undefined && alternatingSteps < stepCount * 0.7) {
+          reasons.push(`Only ${alternatingSteps} of ${stepCount} steps were alternating (poor gait pattern)`);
+        }
+        if (symmetry !== undefined && symmetry < 60) {
+          reasons.push(`Gait symmetry was ${symmetry.toFixed(0)}% (required ≥60%)`);
+        }
+        if (reasons.length === 0 && status === 'failed') {
+          reasons.push('Walking motion not detected or insufficient steps');
+        }
+        break;
+      }
+
+      case 'one_leg': {
+        const holdTime = metrics.holdTime;
+        const REQUIRED_HOLD = 3; // seconds
+        const swayIndex = metrics.swayIndex;
+        const maxTrunkLean = metrics.maxTrunkLean;
+        
+        if (holdTime !== undefined && holdTime < REQUIRED_HOLD) {
+          reasons.push(`Hold time was ${holdTime.toFixed(1)}s (required ≥${REQUIRED_HOLD}s)`);
+        }
+        if (swayIndex !== undefined && swayIndex > 0.15) {
+          reasons.push(`Sway index was ${(swayIndex * 100).toFixed(0)}% (too much wobbling)`);
+        }
+        if (maxTrunkLean !== undefined && maxTrunkLean > 20) {
+          reasons.push(`Trunk lean was ${maxTrunkLean.toFixed(0)}° (required <20°)`);
+        }
+        if (reasons.length === 0 && status === 'failed') {
+          reasons.push('One-leg stance not detected or not held long enough');
+        }
+        break;
+      }
+
+      case 'tiptoe': {
+        const holdTime = metrics.holdTime;
+        const REQUIRED_HOLD = 3; // seconds
+        const plantarflexion = metrics.plantarflexionAngle || metrics.leftPlantarflexion || metrics.rightPlantarflexion;
+        const REQUIRED_ANGLE = 30;
+        
+        if (holdTime !== undefined && holdTime < REQUIRED_HOLD) {
+          reasons.push(`Hold time was ${holdTime.toFixed(1)}s (required ≥${REQUIRED_HOLD}s)`);
+        }
+        if (plantarflexion !== undefined && plantarflexion < REQUIRED_ANGLE) {
+          reasons.push(`Plantarflexion angle was ${plantarflexion.toFixed(0)}° (required ≥${REQUIRED_ANGLE}°)`);
+        }
+        if (metrics.heelsLifted === 0) {
+          reasons.push('Heels not lifted off ground');
+        }
+        if (reasons.length === 0 && status === 'failed') {
+          reasons.push('Tiptoe stance not detected or not held long enough');
+        }
+        break;
+      }
+
+      case 'squat': {
+        const kneeAngle = metrics.minKneeAngle || metrics.kneeAngle;
+        const REQUIRED_ANGLE = 130; // Must be less than this for partial squat
+        const holdTime = metrics.holdTime;
+        
+        if (kneeAngle !== undefined && kneeAngle > REQUIRED_ANGLE) {
+          reasons.push(`Knee angle was ${kneeAngle.toFixed(0)}° (required <${REQUIRED_ANGLE}° for squat)`);
+        }
+        if (holdTime !== undefined && holdTime < 1) {
+          reasons.push(`Squat hold time was ${holdTime.toFixed(1)}s (required ≥1s)`);
+        }
+        if (metrics.hipsBackEnough === 0) {
+          reasons.push('Hips not positioned back enough (weight on toes)');
+        }
+        if (reasons.length === 0 && status === 'failed') {
+          reasons.push('Squat not detected or insufficient depth');
+        }
+        break;
+      }
+
+      default:
+        if (status === 'failed') {
+          reasons.push('Task requirements not met');
+        }
+    }
+
+    return reasons;
+  };
+
+  // Prepare radar chart data - using actual metric names from tasks
+  const oneLegTask = session.tasks.find(t => t.task_name === 'one_leg');
+  const raiseHandTask = session.tasks.find(t => t.task_name === 'raise_hand');
+  const walkTask = session.tasks.find(t => t.task_name === 'walk');
+  const jumpTask = session.tasks.find(t => t.task_name === 'jump');
+  const squatTask = session.tasks.find(t => t.task_name === 'squat');
+  const tiptoeTask = session.tasks.find(t => t.task_name === 'tiptoe');
+
+  // Get shoulder angle (max of left/right)
+  const leftShoulder = raiseHandTask?.metrics.leftShoulderAngle || 0;
+  const rightShoulder = raiseHandTask?.metrics.rightShoulderAngle || 0;
+  const maxShoulderAngle = Math.max(leftShoulder, rightShoulder);
+
   const radarData = [
     {
       metric: 'Balance',
-      value: Math.min(100, (session.tasks.find(t => t.task_name === 'one_leg')?.metrics.holdTime || 0) * 10),
+      value: Math.min(100, (oneLegTask?.metrics.holdTime || 0) * 20), // 5s = 100%
       fullMark: 100,
     },
     {
       metric: 'Flexibility',
-      value: Math.min(100, (session.tasks.find(t => t.task_name === 'raise_hand')?.metrics.shoulderFlexionMax || 0) / 1.8),
+      value: Math.min(100, maxShoulderAngle / 1.8), // 180° = 100%
       fullMark: 100,
     },
     {
       metric: 'Symmetry',
-      value: session.tasks.find(t => t.task_name === 'walk')?.metrics.symmetryPercent || 0,
+      value: walkTask?.metrics.symmetryPercent || walkTask?.metrics.alternatingSteps ? Math.min(100, (walkTask?.metrics.alternatingSteps || 0) * 20) : 50,
       fullMark: 100,
     },
     {
       metric: 'Stability',
-      value: Math.max(0, 100 - (session.tasks.find(t => t.task_name === 'one_leg')?.metrics.wobbleCount || 0) * 10),
+      value: Math.max(0, 100 - (oneLegTask?.metrics.swayIndex || 0) * 500), // Lower sway = higher stability
       fullMark: 100,
     },
     {
       metric: 'Coordination',
-      value: Math.min(100, (session.tasks.find(t => t.task_name === 'raise_hand')?.metrics.duration || 0) * 20),
+      value: jumpTask?.metrics.jumpScore ? jumpTask.metrics.jumpScore * 50 : (raiseHandTask?.metrics.armRaiseScore ? raiseHandTask.metrics.armRaiseScore * 50 : 50),
       fullMark: 100,
     },
   ];
 
-  // Prepare angle data for detailed biomechanics
+  // Prepare angle data for detailed biomechanics - using actual metric names
+  // Each entry includes min/max for proper range evaluation
   const angleData = [
     {
-      joint: 'Shoulder',
-      metric: 'Flexion Max',
-      value: session.tasks.find(t => t.task_name === 'raise_hand')?.metrics.shoulderFlexionMax,
-      normal: '180°',
+      joint: 'Left Shoulder',
+      metric: 'Flexion Angle',
+      value: raiseHandTask?.metrics.leftShoulderAngle,
+      normal: '150-180°',
+      min: 150,
+      max: 180,
       unit: '°',
     },
     {
-      joint: 'Shoulder',
-      metric: 'Flexion Min',
-      value: session.tasks.find(t => t.task_name === 'raise_hand')?.metrics.shoulderFlexionMin,
-      normal: '0°',
+      joint: 'Right Shoulder',
+      metric: 'Flexion Angle',
+      value: raiseHandTask?.metrics.rightShoulderAngle,
+      normal: '150-180°',
+      min: 150,
+      max: 180,
       unit: '°',
     },
     {
-      joint: 'Hip',
-      metric: 'Angle',
-      value: session.tasks.find(t => t.task_name === 'one_leg')?.metrics.hipAngle,
-      normal: '180°',
+      joint: 'Left Elbow',
+      metric: 'Extension Angle',
+      value: raiseHandTask?.metrics.leftElbowAngle,
+      normal: '160-180°',
+      min: 160,
+      max: 180,
+      unit: '°',
+    },
+    {
+      joint: 'Right Elbow',
+      metric: 'Extension Angle',
+      value: raiseHandTask?.metrics.rightElbowAngle,
+      normal: '160-180°',
+      min: 160,
+      max: 180,
+      unit: '°',
+    },
+    {
+      joint: 'Trunk',
+      metric: 'Max Lean (Balance)',
+      value: oneLegTask?.metrics.maxTrunkLean,
+      normal: '<15°',
+      min: 0,
+      max: 15,
       unit: '°',
     },
     {
       joint: 'Knee',
-      metric: 'Angle',
-      value: session.tasks.find(t => t.task_name === 'one_leg')?.metrics.kneeAngle,
-      normal: '180°',
-      unit: '°',
-    },
-    {
-      joint: 'Ankle',
-      metric: 'Angle',
-      value: session.tasks.find(t => t.task_name === 'one_leg')?.metrics.ankleAngle,
-      normal: '90°',
+      metric: 'Squat Depth',
+      value: squatTask?.metrics.minKneeAngle || squatTask?.metrics.kneeAngle,
+      normal: '<130°',
+      min: 0,
+      max: 130,
       unit: '°',
     },
   ];
+
+  // Evaluate biomechanical status based on proper range checking
+  const evaluateAngleStatus = (value: number | undefined, min: number, max: number): { status: string; color: 'success' | 'warning' | 'error' } => {
+    if (value === undefined) {
+      return { status: 'Not measured', color: 'warning' };
+    }
+
+    const MILD_THRESHOLD = 5; // degrees within boundary for mild deviation
+    const SIGNIFICANT_THRESHOLD = 15; // degrees beyond boundary for significant deviation
+
+    // Check if value is within normal range
+    if (value >= min && value <= max) {
+      return { status: 'Normal', color: 'success' };
+    }
+
+    // Value is outside range - calculate how far
+    let deviation = 0;
+    if (value < min) {
+      deviation = min - value;
+    } else if (value > max) {
+      deviation = value - max;
+    }
+
+    // Classify deviation severity
+    if (deviation <= MILD_THRESHOLD) {
+      return { status: 'Mild Deviation', color: 'warning' };
+    } else if (deviation <= SIGNIFICANT_THRESHOLD) {
+      return { status: 'Moderate Deviation', color: 'warning' };
+    } else {
+      return { status: 'Significant Deviation', color: 'error' };
+    }
+  };
 
   const handlePrint = () => {
     window.print();
@@ -448,19 +857,61 @@ const ClinicianView = () => {
               {/* Summary Metrics */}
               <Box sx={{ flex: "1 1 100%" }}>
                 <Typography variant="h6" gutterBottom fontWeight={600} sx={{ mt: 2 }}>
-                  Key Performance Indicators
+                  Task Performance Summary
                 </Typography>
                 <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
-                  {session.tasks.map((task) => (
-                    <Box sx={{ flex: "1 1 30%", minWidth: "250px" }} key={task.id}>
-                      <Card variant="outlined">
+                  {session.tasks.map((task) => {
+                    const isFailed = task.status === 'failed';
+                    const failureReasons = getTaskFailureReasons(task);
+                    return (
+                    <Box sx={{ flex: "1 1 30%", minWidth: "280px" }} key={task.id}>
+                      <Card 
+                        variant="outlined"
+                        sx={{ 
+                          borderColor: isFailed ? 'error.main' : 'success.main',
+                          borderWidth: 2,
+                        }}
+                      >
                         <CardContent>
-                          <Typography variant="caption" color="text.secondary">
-                            {task.task_name.replace(/_/g, ' ').toUpperCase()}
-                          </Typography>
-                          <Typography variant="h5" fontWeight={600} sx={{ my: 1 }}>
-                            {task.status === 'success' ? '✓' : '○'}
-                          </Typography>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                            <Typography variant="subtitle1" fontWeight={600}>
+                              {task.task_name.replace(/_/g, ' ').toUpperCase()}
+                            </Typography>
+                            {renderStatusIndicator(task, 'medium')}
+                          </Box>
+                          
+                          {/* Show failure reasons on summary cards */}
+                          {isFailed && failureReasons.length > 0 && (
+                            <Box sx={{ 
+                              bgcolor: 'error.lighter', 
+                              p: 1.5, 
+                              borderRadius: 1, 
+                              mb: 1.5,
+                              border: '1px solid',
+                              borderColor: 'error.light',
+                            }}>
+                              {failureReasons.slice(0, 2).map((reason, rIdx) => (
+                                <Typography 
+                                  key={rIdx} 
+                                  variant="body2" 
+                                  color="error.dark"
+                                  sx={{ 
+                                    fontSize: '0.8rem',
+                                    lineHeight: 1.4,
+                                    mb: rIdx < failureReasons.slice(0, 2).length - 1 ? 0.5 : 0,
+                                  }}
+                                >
+                                  • {reason}
+                                </Typography>
+                              ))}
+                              {failureReasons.length > 2 && (
+                                <Typography variant="caption" color="error.dark" sx={{ fontStyle: 'italic' }}>
+                                  +{failureReasons.length - 2} more...
+                                </Typography>
+                              )}
+                            </Box>
+                          )}
+                          
                           <Divider sx={{ my: 1 }} />
                           <Stack spacing={0.5}>
                             {Object.entries(task.metrics).slice(0, 3).map(([key, value]) => (
@@ -472,7 +923,8 @@ const ClinicianView = () => {
                         </CardContent>
                       </Card>
                     </Box>
-                  ))}
+                    );
+                  })}
                 </Box>
               </Box>
             </Box>
@@ -498,28 +950,14 @@ const ClinicianView = () => {
                 </TableHead>
                 <TableBody>
                   {angleData.map((angle, idx) => {
-                    const value = angle.value;
-                    const normalValue = parseInt(angle.normal);
-                    let status = 'Normal';
-                    let color: 'success' | 'warning' | 'error' = 'success';
-                    
-                    if (value !== undefined) {
-                      const deviation = Math.abs(value - normalValue);
-                      if (deviation > 30) {
-                        status = 'Significant Deviation';
-                        color = 'error';
-                      } else if (deviation > 15) {
-                        status = 'Moderate Deviation';
-                        color = 'warning';
-                      }
-                    }
+                    const { status, color } = evaluateAngleStatus(angle.value, angle.min, angle.max);
 
                     return (
                       <TableRow key={idx}>
                         <TableCell>{angle.joint}</TableCell>
                         <TableCell>{angle.metric}</TableCell>
                         <TableCell align="right">
-                          {value !== undefined ? `${value.toFixed(1)}${angle.unit}` : 'Not measured'}
+                          {angle.value !== undefined ? `${angle.value.toFixed(1)}${angle.unit}` : 'Not measured'}
                         </TableCell>
                         <TableCell align="right">{angle.normal}</TableCell>
                         <TableCell align="center">
@@ -552,8 +990,9 @@ const ClinicianView = () => {
         {/* Tab 2: Task Details */}
         {activeTab === 2 && (
           <Box sx={{ p: 3 }}>
-            {session.tasks.map((task, idx) => {
+            {session.tasks.map((task) => {
               const isFailed = task.status === 'failed';
+              const failureReasons = getTaskFailureReasons(task);
               return (
               <Paper 
                 key={task.id} 
@@ -566,10 +1005,42 @@ const ClinicianView = () => {
                   bgcolor: isFailed ? 'error.lighter' : 'background.paper',
                 }}
               >
-                <Typography variant="h6" gutterBottom fontWeight={600} color={isFailed ? 'error.main' : 'text.primary'}>
-                  Task {idx + 1}: {task.task_name.replace(/_/g, ' ').toUpperCase()}
-                  {isFailed && ' - NOT COMPLETED'}
-                </Typography>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                  <Typography variant="h6" fontWeight={600} color={isFailed ? 'error.main' : 'text.primary'}>
+                    {task.task_name.replace(/_/g, ' ').toUpperCase()}
+                  </Typography>
+                  {renderStatusIndicator(task, 'large')}
+                </Box>
+                
+                {/* Failure Reasons - Prominent display for failed tasks */}
+                {isFailed && failureReasons.length > 0 && (
+                  <Box sx={{ 
+                    mb: 2, 
+                    p: 2, 
+                    bgcolor: 'error.main', 
+                    borderRadius: 1,
+                  }}>
+                    <Typography variant="subtitle2" sx={{ color: 'error.contrastText', fontWeight: 600, mb: 1 }}>
+                      Why This Task Failed:
+                    </Typography>
+                    {failureReasons.map((reason, rIdx) => (
+                      <Typography 
+                        key={rIdx} 
+                        variant="body2" 
+                        sx={{ 
+                          color: 'error.contrastText',
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          mb: 0.5,
+                        }}
+                      >
+                        <span style={{ marginRight: 8, fontWeight: 'bold' }}>•</span>
+                        {reason}
+                      </Typography>
+                    ))}
+                  </Box>
+                )}
+
                 <Box sx={{ display: "flex", flexWrap: "wrap", gap: 2 }}>
                   <Box sx={{ flex: "1 1 45%", minWidth: "300px" }}>
                     <Stack spacing={1}>
@@ -598,24 +1069,32 @@ const ClinicianView = () => {
                   </Box>
                   <Box sx={{ flex: "1 1 45%", minWidth: "300px" }}>
                     <Typography variant="caption" color="text.secondary" gutterBottom>
-                      {isFailed ? 'Task Failed - No Metrics Available' : 'All Metrics'}
+                      {isFailed ? 'Partial Metrics (Task Not Completed)' : 'All Metrics'}
                     </Typography>
-                    {!isFailed && (
                     <TableContainer>
                       <Table size="small">
                         <TableBody>
-                          {Object.entries(task.metrics).map(([key, value]) => (
-                            <TableRow key={key}>
-                              <TableCell>{key}</TableCell>
-                              <TableCell align="right">
-                                <strong>{typeof value === 'number' ? value.toFixed(3) : value}</strong>
+                          {Object.keys(task.metrics).length > 0 ? (
+                            Object.entries(task.metrics).map(([key, value]) => (
+                              <TableRow key={key}>
+                                <TableCell>{key}</TableCell>
+                                <TableCell align="right">
+                                  <strong>{typeof value === 'number' ? value.toFixed(2) : value}</strong>
+                                </TableCell>
+                              </TableRow>
+                            ))
+                          ) : (
+                            <TableRow>
+                              <TableCell colSpan={2} align="center">
+                                <Typography variant="body2" color="text.secondary">
+                                  No metrics recorded - detection may have failed
+                                </Typography>
                               </TableCell>
                             </TableRow>
-                          ))}
+                          )}
                         </TableBody>
                       </Table>
                     </TableContainer>
-                    )}
                   </Box>
                 </Box>
               </Paper>

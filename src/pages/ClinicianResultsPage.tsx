@@ -18,14 +18,20 @@ import {
   Chip,
   Divider,
   CircularProgress,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
 } from '@mui/material';
 import {
   Download as DownloadIcon,
-  SaveAlt as ExportIcon,
   Home as HomeIcon,
   Psychology as PsychologyIcon,
   Compare as CompareIcon,
   TableChart as CsvIcon,
+  Code as JsonIcon,
+  Description as TextIcon,
+  Print as PrintIcon,
 } from '@mui/icons-material';
 import { 
   BarChart, 
@@ -46,6 +52,13 @@ import { gradeMetric, getLevelColor } from '../clinical/standards';
 import { computeOverallRisk, getRiskColor, getRiskLabel } from '../clinical/scoring';
 import type { TaskName } from '../store/session';
 import { getSession, getSessionTasks, getTaskMetrics } from '../services/api';
+import { 
+  buildSessionResult, 
+  exportSessionAsJSON, 
+  exportSessionAsCSV,
+  generateClinicalReport,
+  type TaskResult 
+} from '../services/sessionReport';
 
 interface SessionData {
   session: any;
@@ -230,32 +243,66 @@ const ClinicianResultsPage = () => {
     };
   });
 
+  // Build structured session result for enhanced exports
+  const sessionResult = useMemo(() => {
+    const taskResults: TaskResult[] = sessionData.tasks.map(t => ({
+      task: t.task,
+      metrics: t.metrics,
+      status: 'success' as const,
+    }));
+    
+    return buildSessionResult(
+      taskResults,
+      sessionIdFromUrl || 'unknown',
+      sessionData.session.child_age,
+      sessionData.session.child_name,
+      sessionData.session.child_height_cm,
+      sessionData.session.child_gender
+    );
+  }, [sessionData, sessionIdFromUrl]);
+
+  // Export menu state
+  const [exportMenuAnchor, setExportMenuAnchor] = useState<null | HTMLElement>(null);
+  const exportMenuOpen = Boolean(exportMenuAnchor);
+
   const handleExportJSON = () => {
-    const json = JSON.stringify(sessionData, null, 2);
-    const blob = new Blob([json], { type: 'application/json' });
+    // Use enhanced JSON export with full session structure
+    const jsonStr = exportSessionAsJSON(sessionResult);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `session-${sessionData.session.id}.json`;
+    a.download = `session-${sessionData.session.id}-clinical.json`;
     a.click();
     URL.revokeObjectURL(url);
   };
 
   const handleExportCSV = () => {
-    let csv = 'Task,Metric,Value\n';
-    tasks.forEach((task) => {
-      Object.entries(task.metrics).forEach(([key, value]) => {
-        csv += `${task.task},${key},${value}\n`;
-      });
-    });
-    
-    const blob = new Blob([csv], { type: 'text/csv' });
+    // Use enhanced CSV export with complete metrics
+    const csvStr = exportSessionAsCSV(sessionResult);
+    const blob = new Blob([csvStr], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `session-${sessionData.session.id}.csv`;
+    a.download = `session-${sessionData.session.id}-clinical.csv`;
     a.click();
     URL.revokeObjectURL(url);
+  };
+
+  const handleExportTextReport = () => {
+    // Generate clinical text report
+    const report = generateClinicalReport(sessionResult);
+    const blob = new Blob([report.textReport], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `session-${sessionData.session.id}-report.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handlePrint = () => {
+    window.print();
   };
 
   const handleCompareSession = () => {
@@ -545,7 +592,7 @@ const ClinicianResultsPage = () => {
       </Paper>
 
       {/* Notes */}
-      <Paper elevation={2} sx={{ mb: 3, p: 2 }}>
+      <Paper elevation={2} sx={{ mb: 3, p: 2, '@media print': { breakInside: 'avoid' } }}>
         <Typography variant="h6" gutterBottom fontWeight={600}>
           Clinical Notes
         </Typography>
@@ -561,29 +608,47 @@ const ClinicianResultsPage = () => {
       </Paper>
 
       {/* Actions */}
-      <Stack direction="row" spacing={2} flexWrap="wrap">
+      <Stack direction="row" spacing={2} flexWrap="wrap" sx={{ '@media print': { display: 'none' } }}>
         <Button
           variant="contained"
-          startIcon={<ExportIcon />}
-          onClick={handleExportJSON}
+          startIcon={<DownloadIcon />}
+          onClick={(e) => setExportMenuAnchor(e.currentTarget)}
         >
-          Export JSON
+          Export Data
         </Button>
-        <Button
-          variant="contained"
-          startIcon={<CsvIcon />}
-          onClick={handleExportCSV}
-          color="secondary"
+        
+        {/* Export Format Menu */}
+        <Menu
+          anchorEl={exportMenuAnchor}
+          open={exportMenuOpen}
+          onClose={() => setExportMenuAnchor(null)}
         >
-          Export CSV
-        </Button>
+          <MenuItem onClick={() => { handleExportJSON(); setExportMenuAnchor(null); }}>
+            <ListItemIcon><JsonIcon fontSize="small" /></ListItemIcon>
+            <ListItemText>Export as JSON (Full Data)</ListItemText>
+          </MenuItem>
+          <MenuItem onClick={() => { handleExportCSV(); setExportMenuAnchor(null); }}>
+            <ListItemIcon><CsvIcon fontSize="small" /></ListItemIcon>
+            <ListItemText>Export as CSV (Spreadsheet)</ListItemText>
+          </MenuItem>
+          <MenuItem onClick={() => { handleExportTextReport(); setExportMenuAnchor(null); }}>
+            <ListItemIcon><TextIcon fontSize="small" /></ListItemIcon>
+            <ListItemText>Export Clinical Report (Text)</ListItemText>
+          </MenuItem>
+          <MenuItem onClick={() => { handlePrint(); setExportMenuAnchor(null); }}>
+            <ListItemIcon><PrintIcon fontSize="small" /></ListItemIcon>
+            <ListItemText>Print / Save as PDF</ListItemText>
+          </MenuItem>
+        </Menu>
+        
         <Button
           variant="outlined"
-          startIcon={<DownloadIcon />}
-          disabled
+          startIcon={<CompareIcon />}
+          onClick={handleCompareSession}
         >
-          Download PDF
+          Compare Sessions
         </Button>
+        
         <Box sx={{ flex: 1 }} />
         <Button
           variant="outlined"
@@ -593,6 +658,11 @@ const ClinicianResultsPage = () => {
           Back to Home
         </Button>
       </Stack>
+      
+      {/* Session tracking info */}
+      <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block', textAlign: 'center' }}>
+        Session ID: {sessionIdFromUrl} • Storing session data helps track progress over time
+      </Typography>
     </Container>
   );
 };

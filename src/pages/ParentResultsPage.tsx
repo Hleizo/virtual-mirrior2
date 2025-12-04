@@ -11,6 +11,10 @@ import {
   Alert,
   Chip,
   CircularProgress,
+  Menu,
+  MenuItem,
+  ListItemIcon,
+  ListItemText,
 } from '@mui/material';
 import {
   CheckCircle as CheckCircleIcon,
@@ -18,6 +22,10 @@ import {
   Download as DownloadIcon,
   Cancel as CancelIcon,
   Warning as WarningIcon,
+  Image as ImageIcon,
+  TableChart as CsvIcon,
+  Code as JsonIcon,
+  Print as PrintIcon,
 } from '@mui/icons-material';
 import { useMemo, useRef, useState, useEffect } from 'react';
 import { RadialBarChart, RadialBar, PolarAngleAxis, ResponsiveContainer } from 'recharts';
@@ -25,6 +33,12 @@ import html2canvas from 'html2canvas';
 import { gradeMetric, getLevelColor } from '../clinical/standards';
 import type { TaskName } from '../store/session';
 import { getSession, getSessionTasks, getTaskMetrics } from '../services/api';
+import { 
+  buildSessionResult, 
+  exportSessionAsJSON, 
+  exportSessionAsCSV,
+  type TaskResult 
+} from '../services/sessionReport';
 
 interface SessionData {
   session: any;
@@ -161,12 +175,39 @@ const ParentResultsPage = () => {
         one_leg: 'Practice standing on one leg for 5 seconds daily—try balance games like flamingo pose.',
         walk: 'Encourage walking on different surfaces (grass, sand) to improve gait symmetry.',
         jump: 'Practice jumping activities like hopscotch or jump rope for 10 minutes daily.',
+        tiptoe: 'Practice standing on tiptoes during play—pretend to be a ballerina for a few minutes.',
+        squat: 'Practice squatting during play—play games that require bending down to pick up toys.',
       };
       return taskTips[taskName] || 'Continue practicing this movement pattern regularly.';
     } else {
       return 'Consider consulting a pediatric physiotherapist for personalized guidance.';
     }
   };
+
+  // Export menu state
+  const [exportMenuAnchor, setExportMenuAnchor] = useState<null | HTMLElement>(null);
+  const exportMenuOpen = Boolean(exportMenuAnchor);
+
+  // Build structured session result for exports
+  const sessionResult = useMemo(() => {
+    if (!sessionData) return null;
+    
+    const taskResults: TaskResult[] = sessionData.tasks.map(t => ({
+      task: t.task,
+      metrics: t.metrics,
+      status: t.status === 'failed' ? 'failed' : 'success',
+      notes: t.notes,
+    }));
+    
+    return buildSessionResult(
+      taskResults,
+      sessionIdFromUrl || 'unknown',
+      sessionData.session.child_age,
+      sessionData.session.child_name,
+      sessionData.session.child_height_cm,
+      sessionData.session.child_gender
+    );
+  }, [sessionData, sessionIdFromUrl]);
 
   // Download results as PNG
   const handleDownloadPNG = async () => {
@@ -184,6 +225,35 @@ const ParentResultsPage = () => {
       console.error('Failed to generate PNG:', error);
       alert('Failed to download image. Please try again.');
     }
+  };
+
+  // Download results as JSON
+  const handleDownloadJSON = () => {
+    if (!sessionResult) return;
+    const jsonStr = exportSessionAsJSON(sessionResult);
+    const blob = new Blob([jsonStr], { type: 'application/json' });
+    const link = document.createElement('a');
+    link.download = `${sessionData?.session.child_name || 'Child'}-Session-${new Date().toISOString().slice(0, 10)}.json`;
+    link.href = URL.createObjectURL(blob);
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+
+  // Download results as CSV
+  const handleDownloadCSV = () => {
+    if (!sessionResult) return;
+    const csvStr = exportSessionAsCSV(sessionResult);
+    const blob = new Blob([csvStr], { type: 'text/csv' });
+    const link = document.createElement('a');
+    link.download = `${sessionData?.session.child_name || 'Child'}-Session-${new Date().toISOString().slice(0, 10)}.csv`;
+    link.href = URL.createObjectURL(blob);
+    link.click();
+    URL.revokeObjectURL(link.href);
+  };
+
+  // Print results
+  const handlePrint = () => {
+    window.print();
   };
 
   if (loading) {
@@ -387,15 +457,40 @@ const ParentResultsPage = () => {
       </div>
 
       {/* Actions */}
-      <Stack direction="row" spacing={2} flexWrap="wrap" sx={{ mt: 3 }}>
+      <Stack direction="row" spacing={2} flexWrap="wrap" sx={{ mt: 3, '@media print': { display: 'none' } }}>
         <Button
           variant="contained"
           startIcon={<DownloadIcon />}
-          onClick={handleDownloadPNG}
+          onClick={(e) => setExportMenuAnchor(e.currentTarget)}
           sx={{ flex: 1, minWidth: '200px' }}
         >
           Download Results
         </Button>
+        
+        {/* Export Format Menu */}
+        <Menu
+          anchorEl={exportMenuAnchor}
+          open={exportMenuOpen}
+          onClose={() => setExportMenuAnchor(null)}
+        >
+          <MenuItem onClick={() => { handleDownloadPNG(); setExportMenuAnchor(null); }}>
+            <ListItemIcon><ImageIcon fontSize="small" /></ListItemIcon>
+            <ListItemText>Download as Image (PNG)</ListItemText>
+          </MenuItem>
+          <MenuItem onClick={() => { handleDownloadJSON(); setExportMenuAnchor(null); }}>
+            <ListItemIcon><JsonIcon fontSize="small" /></ListItemIcon>
+            <ListItemText>Download as JSON</ListItemText>
+          </MenuItem>
+          <MenuItem onClick={() => { handleDownloadCSV(); setExportMenuAnchor(null); }}>
+            <ListItemIcon><CsvIcon fontSize="small" /></ListItemIcon>
+            <ListItemText>Download as CSV</ListItemText>
+          </MenuItem>
+          <MenuItem onClick={() => { handlePrint(); setExportMenuAnchor(null); }}>
+            <ListItemIcon><PrintIcon fontSize="small" /></ListItemIcon>
+            <ListItemText>Print Report</ListItemText>
+          </MenuItem>
+        </Menu>
+        
         <Button
           variant="outlined"
           startIcon={<HomeIcon />}
@@ -405,6 +500,11 @@ const ParentResultsPage = () => {
           Back to Home
         </Button>
       </Stack>
+      
+      {/* Session ID for reference (helps track progress over time) */}
+      <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block', textAlign: 'center' }}>
+        Session ID: {sessionIdFromUrl} • Data stored securely for progress tracking
+      </Typography>
     </Container>
   );
 };

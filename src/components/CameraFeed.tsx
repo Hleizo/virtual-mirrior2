@@ -141,9 +141,28 @@ export const CameraFeed = forwardRef<CameraFeedHandle, CameraFeedProps>(
           margin: '0 auto',
         }}
       >
-        {/* Video Element */}
+        {/* 
+         * Video Element - Camera Feed Display
+         * ===================================
+         * CRITICAL: object-fit: contain is essential for pose detection accuracy!
+         * 
+         * Why object-fit: contain?
+         * - Maintains the video's aspect ratio without cropping or stretching
+         * - Ensures the child's FULL BODY is visible in the frame
+         * - Prevents distorted body proportions that would break pose detection
+         * - Letterboxing (black bars) may appear, but the entire body is visible
+         * 
+         * Without this, the video might:
+         * - Stretch/squash the child's proportions (breaking joint angle calculations)
+         * - Crop parts of the body (missing feet, hands, or head landmarks)
+         * - Give inaccurate pose detection results
+         * 
+         * The mirror effect (scaleX(-1)) makes the experience intuitive for children
+         * as they see themselves like looking in a mirror.
+         */}
         <video
           ref={videoRef}
+          id="cameraVideo"
           muted
           playsInline
           autoPlay
@@ -152,10 +171,14 @@ export const CameraFeed = forwardRef<CameraFeedHandle, CameraFeedProps>(
             height: 'auto',
             maxWidth: '100%',
             maxHeight: '80vh',
+            /* CRITICAL: Maintain aspect ratio for accurate pose detection */
             objectFit: 'contain',
-            transform: 'scaleX(-1)', // Mirror effect
+            /* Mirror effect - natural "mirror" experience for the child */
+            transform: 'scaleX(-1)',
             display: permissionState === 'granted' ? 'block' : 'none',
             borderRadius: '8px',
+            /* Smooth background for letterboxing areas */
+            backgroundColor: '#1a1a2e',
           }}
         />
 

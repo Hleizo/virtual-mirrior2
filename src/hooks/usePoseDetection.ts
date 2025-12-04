@@ -48,12 +48,17 @@ export interface UsePoseDetectionReturn {
 }
 
 const DEFAULT_OPTIONS: PoseDetectionOptions = {
-  modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task',
+  // Using 'full' model for better accuracy (especially overhead arm detection)
+  // Options: pose_landmarker_lite (fast), pose_landmarker_full (accurate), pose_landmarker_heavy (most accurate but slow)
+  modelAssetPath: 'https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_full/float16/1/pose_landmarker_full.task',
   runningMode: 'VIDEO',
+  // Lower thresholds = detect more poses but may have more noise
+  // Higher thresholds = more confident but may miss poses
   minPoseDetectionConfidence: 0.5,
   minPosePresenceConfidence: 0.5,
   minTrackingConfidence: 0.5,
   numPoses: 1,
+  // GPU is faster but falls back to CPU automatically if unavailable
   delegate: 'GPU',
   enableFps: true
 };

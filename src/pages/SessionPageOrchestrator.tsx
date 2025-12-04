@@ -30,36 +30,99 @@ import DirectionsWalkIcon from '@mui/icons-material/DirectionsWalk';
 import TouchAppIcon from '@mui/icons-material/TouchApp';
 import CameraFeed from '../components/CameraFeed';
 import PoseDetector from '../components/PoseDetector';
+import CoachOverlay from '../components/CoachOverlay';
 import { useSessionStore } from '../store/session';
 import type { TaskMetric } from '../store/session';
 import { createTaskHandlers, TASK_SEQUENCE } from '../logic/tasks';
 import type { TaskUpdate } from '../logic/tasks';
-import { cancelSpeech } from '../utils/voice';
-import { speak, stopSpeaking, VOICES } from '../utils/elevenlabs-tts';
+import { cancelSpeech, speak as speakArabic } from '../utils/voice';
+import { stopSpeaking } from '../utils/elevenlabs-tts';
 import { createSession, addTask, addMetric } from '../services/api';
 import { useSearchParams } from 'react-router-dom';
 
-// Task icons and descriptions for better UX
-const TASK_INFO: Record<string, { icon: React.ReactNode; title: string; instruction: string }> = {
+// Humanized Arabic task introductions - natural, child-friendly phrases
+const ARABIC_TASK_INTRO: Record<string, string[]> = {
+  raise_hand: [
+    'يلا نرفع إيدينا عالي للسماء!',
+    'هيا نرفع الإيدين! شوف كم تقدر ترفعها!',
+    'يلا نلعب! ارفع إيديك فوق رأسك!',
+  ],
+  one_leg: [
+    'يلا نتوازن! ارفع رِجل وحدة واثبت!',
+    'هيا نلعب لعبة التوازن! ارفع قدم واحدة!',
+    'شوف كم تقدر تثبت على رِجل وحدة!',
+  ],
+  walk: [
+    'يلا نمشي سوا! خطوة خطوة للأمام!',
+    'هيا نمشي بشكل طبيعي!',
+    'يلا امشي نحوي! خطوات حلوة!',
+  ],
+  jump: [
+    'يلا نقفز! جهز حالك واقفز عالي!',
+    'هيا نطير مثل الكنغر! اثني ركبتيك واقفز!',
+    'يلا نقفز سوا! برجليك مع بعض!',
+  ],
+  tiptoe: [
+    'يلا نقف على أطراف أصابعنا! زي الباليرينا!',
+    'هيا نرتفع على أصابعنا!',
+    'يلا نلعب راقصة الباليه!',
+  ],
+  squat: [
+    'يلا نقرفص! زي ما نقعد على كرسي!',
+    'هيا ننزل شوي! اثني ركبتيك!',
+    'يلا نعمل قرفصاء حلوة!',
+  ],
+};
+
+// Get random intro phrase for variety
+const getArabicIntro = (taskName: string): string => {
+  const phrases = ARABIC_TASK_INTRO[taskName] || ['يلا نبدأ!'];
+  return phrases[Math.floor(Math.random() * phrases.length)];
+};
+
+// Task icons and descriptions for visual display
+const TASK_INFO: Record<string, { icon: React.ReactNode; title: string; instruction: string; arabicInstruction: string }> = {
   raise_hand: {
     icon: <PanToolIcon sx={{ fontSize: 48, color: 'primary.main' }} />,
     title: 'Raise Your Hand',
     instruction: 'Lift your right arm straight up above your head. Hold it steady.',
+    arabicInstruction: 'ارفع يدك اليمنى فوق رأسك وثبتها',
   },
   one_leg: {
     icon: <AccessibilityNewIcon sx={{ fontSize: 48, color: 'primary.main' }} />,
     title: 'Stand on One Leg',
     instruction: 'Lift one foot off the ground and balance on the other leg for as long as you can.',
+    arabicInstruction: 'ارفع قدماً واحدة وتوازن على الأخرى',
   },
   walk: {
     icon: <DirectionsWalkIcon sx={{ fontSize: 48, color: 'primary.main' }} />,
     title: 'Walk Forward',
-    instruction: 'Walk naturally towards the camera in a straight line.',
+    instruction: 'Walk naturally toward the camera in a straight line. Take about 10 steps.',
+    arabicInstruction: 'امش بشكل طبيعي نحو الكاميرا',
+  },
+  jump: {
+    icon: <AccessibilityNewIcon sx={{ fontSize: 48, color: 'primary.main' }} />,
+    title: 'Jump Up High',
+    instruction: 'Bend your knees and jump up with both feet together. Land softly!',
+    arabicInstruction: 'اثنِ ركبتيك واقفز بقدميك معاً!',
+  },
+  tiptoe: {
+    icon: <AccessibilityNewIcon sx={{ fontSize: 48, color: 'primary.main' }} />,
+    title: 'Stand on Tiptoes',
+    instruction: 'Rise up on your toes like a ballerina. Raise your arms overhead and hold.',
+    arabicInstruction: 'قف على أطراف أصابعك مثل راقصة الباليه',
+  },
+  squat: {
+    icon: <AccessibilityNewIcon sx={{ fontSize: 48, color: 'primary.main' }} />,
+    title: 'Do a Squat',
+    instruction: 'Bend your knees and lower your body like sitting in a chair. Keep your heels down.',
+    arabicInstruction: 'اقرفص مثل الجلوس على كرسي',
   },
   touch_shoulder: {
     icon: <TouchAppIcon sx={{ fontSize: 48, color: 'primary.main' }} />,
     title: 'Touch Your Shoulder',
     instruction: 'Touch your left shoulder with your right hand.',
+    arabicInstruction: 'المس كتفك اليسرى بيدك اليمنى',
   },
 };
 
@@ -155,12 +218,10 @@ const SessionPageOrchestrator = () => {
     // Start first task
     tasks[TASK_SEQUENCE[0]].start();
     
-    // Speak the first task instruction
+    // Speak the first task instruction in Arabic (humanized)
     if (!voiceMuted) {
-      const taskInfo = TASK_INFO[TASK_SEQUENCE[0]];
-      if (taskInfo) {
-        speak(taskInfo.instruction, VOICES.RACHEL);
-      }
+      const taskName = TASK_SEQUENCE[0];
+      speakArabic(getArabicIntro(taskName));
     }
   };
 
@@ -213,17 +274,20 @@ const SessionPageOrchestrator = () => {
       setTaskStartTime(Date.now());
       tasks[TASK_SEQUENCE[nextIndex]].start();
       
-      // Speak instruction for next task
+      // Speak instruction for next task in Arabic (humanized)
       if (!voiceMuted) {
-        const taskInfo = TASK_INFO[TASK_SEQUENCE[nextIndex]];
-        if (taskInfo) {
-          speak(taskInfo.instruction, VOICES.RACHEL);
-        }
+        const taskName = TASK_SEQUENCE[nextIndex];
+        speakArabic(getArabicIntro(taskName));
       }
     } else {
-      // Complete session
+      // Complete session - Arabic success message
       if (!voiceMuted) {
-        speak("Wonderful! You've completed all the exercises. Great work today!", VOICES.RACHEL);
+        const completionPhrases = [
+          'برافو عليك! خلصت كل التمارين! شاطر!',
+          'يا بطل! عملت ممتاز اليوم!',
+          'رائع! أنهيت كل شي! أحسنت!',
+        ];
+        speakArabic(completionPhrases[Math.floor(Math.random() * completionPhrases.length)]);
       }
       completeSession(completedTasks);
     }
@@ -234,23 +298,72 @@ const SessionPageOrchestrator = () => {
     console.log('SESSION: Video ready');
   }, []);
 
-  // Save failed task to backend
-  const saveFailedTask = async (reason: string) => {
+  // Save failed task to backend with partial metrics
+  const saveFailedTask = async (reason: string, partialMetrics?: Record<string, number>) => {
     if (!backendSessionId || savedTaskIds.has(currentTaskName)) return;
     
     setSavedTaskIds(prev => new Set(prev).add(currentTaskName));
+    
+    // Generate descriptive failure reason
+    let failureNote = '';
+    const currentProgress = taskUpdate?.progress || 0;
+    const progressPercent = Math.round(currentProgress * 100);
+    
+    if (reason === 'timeout') {
+      failureNote = `Task timed out (30s limit) at ${progressPercent}% progress`;
+    } else if (reason === 'low_progress') {
+      failureNote = `Insufficient progress (${progressPercent}%) after 15 seconds. `;
+      // Add task-specific detail
+      switch (currentTaskName) {
+        case 'raise_hand':
+          failureNote += 'Arm not raised high enough or held long enough.';
+          break;
+        case 'one_leg':
+          failureNote += 'Could not maintain one-leg stance long enough.';
+          break;
+        case 'walk':
+          failureNote += 'Not enough walking steps detected.';
+          break;
+        case 'jump':
+          failureNote += 'Jump not detected or insufficient height.';
+          break;
+        case 'tiptoe':
+          failureNote += 'Heels not lifted or held long enough.';
+          break;
+        case 'squat':
+          failureNote += 'Squat not deep enough or held long enough.';
+          break;
+        default:
+          failureNote += 'Detection criteria not met.';
+      }
+    } else {
+      failureNote = `Failed: ${reason}`;
+    }
     
     try {
       const taskData = {
         task_name: currentTaskName,
         duration_seconds: Math.floor((Date.now() - taskStartTime) / 1000),
         status: 'failed',
-        notes: `Failed: ${reason}`,
-        metrics: {},
+        notes: failureNote,
+        metrics: partialMetrics || taskUpdate?.metrics || {},
       };
       
       const taskResult = await addTask(backendSessionId, taskData);
       console.log(`✅ Failed task saved to backend: ${currentTaskName}`, taskResult.id);
+      
+      // Save partial metrics if available
+      if (taskResult.id && taskData.metrics && Object.keys(taskData.metrics).length > 0) {
+        for (const [metricName, metricValue] of Object.entries(taskData.metrics)) {
+          if (typeof metricValue === 'number') {
+            try {
+              await addMetric(taskResult.id, { metric_name: metricName, metric_value: metricValue });
+            } catch (metricError) {
+              console.error(`❌ Failed to save metric ${metricName}:`, metricError);
+            }
+          }
+        }
+      }
     } catch (error) {
       console.error('❌ Failed to save failed task:', error);
     }
@@ -269,7 +382,7 @@ const SessionPageOrchestrator = () => {
       saveFailedTask('timeout');
       currentTask.stop();
       if (!voiceMuted) {
-        speak("Time's up. Let's try the next exercise.", VOICES.RACHEL);
+        speakArabic('انتهى الوقت! يلا نجرب التمرين اللي بعده');
       }
       return;
     }
@@ -284,7 +397,7 @@ const SessionPageOrchestrator = () => {
       saveFailedTask('low_progress');
       currentTask.stop();
       if (!voiceMuted) {
-        speak("That's okay, let's move on to the next one.", VOICES.RACHEL);
+        speakArabic('مافي مشكلة حبيبي، يلا نجرب التمرين الثاني');
       }
       return;
     }
@@ -295,7 +408,7 @@ const SessionPageOrchestrator = () => {
       
       // Celebrate with voice
       if (!voiceMuted) {
-        speak("Great job! That was excellent.", VOICES.RACHEL);
+        speakArabic('ما شاء الله! أداء ممتاز يا بطل');
       };
       const taskMetric: TaskMetric = {
         task: currentTaskName as any,
@@ -518,7 +631,7 @@ const SessionPageOrchestrator = () => {
                 borderRadius: 3, 
                 overflow: 'hidden',
                 position: 'relative',
-                bgcolor: '#000',
+                bgcolor: '#1a1a2e', // Dark background for letterboxing
               }}
             >
               <CameraFeed onVideoReady={handleVideoReady} autoStart={true} />
@@ -528,6 +641,14 @@ const SessionPageOrchestrator = () => {
                 onResult={handlePoseResult}
                 showVisualization={true}
               />
+              {/* CoachOverlay - Provides real-time feedback, task HUDs, and success celebrations */}
+              {isRunning && (
+                <CoachOverlay
+                  taskUpdate={taskUpdate}
+                  currentTaskName={currentTaskName}
+                  muted={voiceMuted}
+                />
+              )}
             </Paper>
           </Grid>
 
