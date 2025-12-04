@@ -559,7 +559,7 @@ const ClinicianView = () => {
   const walkTask = session.tasks.find(t => t.task_name === 'walk');
   const jumpTask = session.tasks.find(t => t.task_name === 'jump');
   const squatTask = session.tasks.find(t => t.task_name === 'squat');
-  const tiptoeTask = session.tasks.find(t => t.task_name === 'tiptoe');
+  // tiptoeTask used indirectly via session.tasks iteration
 
   // Get shoulder angle (max of left/right)
   const leftShoulder = raiseHandTask?.metrics.leftShoulderAngle || 0;

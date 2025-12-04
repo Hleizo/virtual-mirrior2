@@ -127,7 +127,6 @@ class RaiseHandTask implements TaskHandler {
       rightElbowAngle,
       leftArmFullRaise,
       rightArmFullRaise,
-      bothArmsFullRaise,
       bestShoulderAngle,
       symmetryDifference,
     } = assessment;

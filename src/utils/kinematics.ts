@@ -520,7 +520,7 @@ export function assessBilateralShoulderFlexion(landmarks: any[]): {
   // Raise Hand task requires shoulder flexion ≥ 90° (arm at or above horizontal)
   // Full ROM achievement is ≥ 150° (near-overhead)
   const MINIMUM_FLEXION_PASS = 90; // Minimum to pass
-  const FULL_FLEXION_TARGET = 150; // Target for full ROM
+  // const FULL_FLEXION_TARGET = 150; // Target for full ROM (reserved for future use)
   
   // Determine if each arm passes minimum criteria (≥90°)
   const leftArmFullRaise = leftShoulderAngle >= MINIMUM_FLEXION_PASS;
