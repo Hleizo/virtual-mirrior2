@@ -152,6 +152,40 @@ const TopNav = () => {
           >
             How It Works
           </Button>
+
+          <Button 
+            color="inherit" 
+            component={Link} 
+            to="/parent/sessions"
+            sx={{
+              fontWeight: 600,
+              textTransform: 'none',
+              fontSize: '0.95rem',
+              px: 2,
+              borderRadius: 0,
+              transition: 'all 0.3s ease',
+              position: 'relative',
+              '&::after': {
+                content: '""',
+                position: 'absolute',
+                bottom: 6,
+                left: '50%',
+                transform: 'translateX(-50%) scaleX(0)',
+                width: '60%',
+                height: 2,
+                bgcolor: 'white',
+                transition: 'transform 0.3s ease',
+              },
+              '&:hover': {
+                background: 'transparent',
+                '&::after': {
+                  transform: 'translateX(-50%) scaleX(1)',
+                },
+              },
+            }}
+          >
+            Parent View
+          </Button>
           
           <Button 
             color="inherit" 

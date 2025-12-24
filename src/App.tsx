@@ -5,6 +5,7 @@ import HomePage from './pages/HomePage';
 import ChildInfoPage from './pages/ChildInfoPage';
 import SessionPageOrchestrator from './pages/SessionPageOrchestrator';
 import ParentResultsPage from './pages/ParentResultsPage';
+import ParentSessionsPage from './pages/ParentSessionsPage';
 import AdminDashboard from './pages/AdminDashboard';
 import AnalyticsPage from './pages/AnalyticsPage';
 import SessionComparison from './pages/SessionComparison';
@@ -119,6 +120,7 @@ function App() {
               {/* Parent Flow */}
               <Route path="/parent/child-info" element={<ChildInfoPage />} />
               <Route path="/parent/session" element={<SessionPageOrchestrator />} />
+              <Route path="/parent/sessions" element={<ParentSessionsPage />} />
               <Route path="/parent/results/:sessionId" element={<ParentResultsPage />} />
               
               {/* Admin Flow */}
