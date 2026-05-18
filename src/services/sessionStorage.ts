@@ -1,6 +1,6 @@
 /**
  * Session Storage Service - DEPRECATED
- * This service is now a stub. All data is stored in Supabase via the backend API.
+ * This service is now a stub. All data is stored via the backend API.
  * Local storage has been removed. This file remains only for backward compatibility.
  */
 
@@ -77,7 +77,7 @@ export interface StoredSession {
 
 /**
  * DEPRECATED: SessionStorageService
- * All session storage is now handled by the backend API and Supabase.
+ * All session storage is now handled by the backend API.
  * This class provides stub methods for backward compatibility only.
  */
 class SessionStorageService {

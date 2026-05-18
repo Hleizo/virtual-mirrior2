@@ -13,6 +13,7 @@ import ProgressTracking from './pages/ProgressTracking';
 import ClinicianView from './pages/ClinicianView';
 import AboutPage from './pages/AboutPage';
 import HowItWorksPage from './pages/HowItWorksPage';
+import { useSupabaseSession } from './hooks/useSupabaseSession';
 
 // Create Material UI theme with custom design touches
 const theme = createTheme({
@@ -104,6 +105,7 @@ const theme = createTheme({
 
 function App() {
   console.log('App rendering...');
+  useSupabaseSession(); // Keep Supabase auth session in sync
   
   return (
     <ThemeProvider theme={theme}>

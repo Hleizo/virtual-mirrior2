@@ -1,6 +1,21 @@
 // API Communication Layer for Virtual Mirror Backend
 
+import { getSupabaseAccessToken } from './supabaseClient';
+
 export const API_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8000";
+
+async function buildHeaders(): Promise<Record<string, string>> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  const token = await getSupabaseAccessToken();
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  return headers;
+}
 
 interface SessionData {
   child_name: string;
@@ -47,9 +62,7 @@ interface MetricData {
 export async function createSession(sessionData: SessionData) {
   const response = await fetch(`${API_URL}/sessions`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: await buildHeaders(),
     body: JSON.stringify(sessionData),
   });
 
@@ -68,9 +81,7 @@ export async function createSession(sessionData: SessionData) {
 export async function addTask(sessionId: string, taskData: TaskData) {
   const response = await fetch(`${API_URL}/sessions/${sessionId}/tasks`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: await buildHeaders(),
     body: JSON.stringify(taskData),
   });
 
@@ -88,9 +99,7 @@ export async function addTask(sessionId: string, taskData: TaskData) {
 export async function addMetric(taskId: string, metricData: MetricData) {
   const response = await fetch(`${API_URL}/tasks/${taskId}/metrics`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: await buildHeaders(),
     body: JSON.stringify(metricData),
   });
 
@@ -108,9 +117,7 @@ export async function addMetric(taskId: string, metricData: MetricData) {
 export async function getSession(sessionId: string): Promise<SessionResponse> {
   const response = await fetch(`${API_URL}/sessions/${sessionId}`, {
     method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: await buildHeaders(),
   });
 
   if (!response.ok) {
@@ -127,9 +134,7 @@ export async function getSession(sessionId: string): Promise<SessionResponse> {
 export async function getAllSessions(): Promise<SessionResponse[]> {
   const response = await fetch(`${API_URL}/sessions`, {
     method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: await buildHeaders(),
   });
 
   if (!response.ok) {
@@ -146,9 +151,7 @@ export async function getAllSessions(): Promise<SessionResponse[]> {
 export async function getSessionTasks(sessionId: string) {
   const response = await fetch(`${API_URL}/sessions/${sessionId}/tasks`, {
     method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: await buildHeaders(),
   });
 
   if (!response.ok) {
@@ -165,9 +168,7 @@ export async function getSessionTasks(sessionId: string) {
 export async function getTaskMetrics(taskId: string) {
   const response = await fetch(`${API_URL}/tasks/${taskId}/metrics`, {
     method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: await buildHeaders(),
   });
 
   if (!response.ok) {
@@ -184,9 +185,7 @@ export async function getTaskMetrics(taskId: string) {
 export async function checkHealth() {
   const response = await fetch(`${API_URL}/health`, {
     method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: await buildHeaders(),
   });
 
   if (!response.ok) {
@@ -202,9 +201,7 @@ export async function checkHealth() {
 export async function getFollowupSessions(sessionId: string) {
   const response = await fetch(`${API_URL}/sessions/${sessionId}/followups`, {
     method: "GET",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: await buildHeaders(),
   });
 
   if (!response.ok) {

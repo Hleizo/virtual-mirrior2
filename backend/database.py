@@ -17,36 +17,29 @@ if sys.platform == 'win32':
 env_path = Path(__file__).parent / ".env"
 load_dotenv(dotenv_path=env_path)
 
-# Construct DATABASE_URL from Supabase environment variables
-SUPABASE_URL = os.getenv("SUPABASE_URL")
+# Require a single DATABASE_URL for database configuration.
+DATABASE_URL = os.getenv("DATABASE_URL")
 
-if not SUPABASE_URL:
-    raise ValueError("SUPABASE_URL environment variable is not set. Please check your .env file.")
+if not DATABASE_URL:
+    raise ValueError(
+        "DATABASE_URL environment variable is not set. Please check your .env file or service configuration."
+    )
 
-# Parse the Supabase URL to extract the host
-parsed_url = urlparse(SUPABASE_URL)
-# Extract project reference from subdomain (e.g., xbmhcywclslbuecajkuw from https://xbmhcywclslbuecajkuw.supabase.co)
-project_ref = parsed_url.netloc.split('.')[0]
+if DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = "postgresql+psycopg://" + DATABASE_URL[len("postgres://"):]
+elif DATABASE_URL.startswith("postgresql://"):
+    DATABASE_URL = "postgresql+psycopg://" + DATABASE_URL[len("postgresql://"):]
 
-# Construct the PostgreSQL connection URL
-# Supabase PostgreSQL connection details
-DB_PASSWORD = os.getenv("SUPABASE_DB_PASSWORD")
-DB_USER = os.getenv("SUPABASE_DB_USER")
-DB_NAME = os.getenv("SUPABASE_DB_NAME")
-DB_HOST = os.getenv("SUPABASE_DB_HOST")
-DB_PORT = os.getenv("SUPABASE_DB_PORT")
+parsed_db_url = urlparse(DATABASE_URL)
+connection_label = (
+    f"{parsed_db_url.username or 'user'}@"
+    f"{parsed_db_url.hostname or 'host'}:"
+    f"{parsed_db_url.port or '5432'}/"
+    f"{(parsed_db_url.path or '').lstrip('/') or 'db'}"
+)
 
-if not DB_PASSWORD:
-    raise ValueError("SUPABASE_DB_PASSWORD environment variable is not set. Please check your .env file.")
-if not DB_HOST:
-    raise ValueError("SUPABASE_DB_HOST environment variable is not set. Please check your .env file.")
-
-# Use psycopg (async) instead of asyncpg for Render compatibility
-DATABASE_URL = f"postgresql+psycopg://{DB_USER}:{DB_PASSWORD}@{DB_HOST}:{DB_PORT}/{DB_NAME}"
-
-print(f"🔗 Connecting to database at: {DB_USER}@{DB_HOST}:{DB_PORT}/{DB_NAME}")
+print(f"🔗 Connecting to database at: {connection_label}")
 print(f"📁 Loading .env from: {env_path}")
-print(f"✅ Environment variables loaded - DB_HOST: {DB_HOST}")
 print(f"🔌 Using psycopg driver for PostgreSQL async connection")
 
 engine = create_async_engine(

@@ -20,6 +20,8 @@
     "@mui/material": "^7.3.4",
     "@mui/system": "^7.3.5",
     "@mui/x-data-grid": "^8.16.0",
+    "@supabase/ssr": "^0.10.3",
+    "@supabase/supabase-js": "^2.106.0",
     "html2canvas": "^1.4.1",
     "lottie-react": "^2.4.1",
     "react": "^19.1.1",

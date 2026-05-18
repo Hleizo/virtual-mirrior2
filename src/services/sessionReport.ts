@@ -11,7 +11,7 @@
  * Data Flow:
  * 1. During session: Task handlers collect metrics and notes
  * 2. On completion: Data is structured into SessionResult format
- * 3. Storage: Sent to backend API (Supabase) + cached locally in IndexedDB
+ * 3. Storage: Sent to backend API + cached locally in IndexedDB
  * 4. Retrieval: Fetched from backend, with local fallback for offline access
  * 5. Reports: Generated from structured data for display/export
  */
@@ -369,7 +369,7 @@ export function buildSessionResult(
 // ============================================================================
 
 /**
- * Save session result to backend API (Supabase)
+ * Save session result to backend API
  * This is the primary storage mechanism for persistent data
  * 
  * @param sessionResult - Complete session result to save

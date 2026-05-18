@@ -150,7 +150,9 @@ Create a file `backend/.env` with your database credentials:
 DATABASE_URL=postgresql://username:password@host:port/database_name
 ```
 
-If you're using Supabase, get your connection string from your Supabase project dashboard.
+If you're using Supabase, run the SQL in `backend/sql/supabase_schema.sql` to create tables.
+
+
 
 #### Frontend Configuration (Optional for local development)
 
@@ -158,6 +160,8 @@ Create a file `.env` in the root directory:
 
 ```env
 VITE_API_BASE_URL=http://localhost:8000
+VITE_SUPABASE_URL=https://your-project.supabase.co
+VITE_SUPABASE_ANON_KEY=your_anon_public_key
 ```
 
 For production, set this to your deployed backend URL.
@@ -343,9 +347,10 @@ When the backend is running, visit:
 
 ### Database (Supabase)
 
-1. Create a project on [Supabase](https://supabase.com)
-2. Copy the PostgreSQL connection string
-3. Use it as `DATABASE_URL` in your backend
+1. Create a new Supabase project
+2. Run `backend/sql/supabase_schema.sql` in the Supabase SQL editor
+3. Copy the PostgreSQL connection string and set `DATABASE_URL` in the backend
+4. Copy the project URL and anon key into `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`
 
 ---
 

@@ -17,7 +17,17 @@ FastAPI backend for the Virtual Mirror application - Early detection of motor we
 pip install -r requirements.txt
 ```
 
-### 2. Run the Server
+### 2. Configure Environment Variables
+
+Create `backend/.env` based on `backend/.env.example` and set:
+
+- `DATABASE_URL` (PostgreSQL connection string from Supabase or your provider).
+
+### 3. Initialize Database Schema (Supabase)
+
+Run the SQL in `backend/sql/supabase_schema.sql` using the Supabase SQL editor.
+
+### 4. Run the Server
 
 ```bash
 # Development mode with auto-reload
@@ -27,7 +37,7 @@ python main.py
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-### 3. Access API Documentation
+### 5. Access API Documentation
 
 Once the server is running, visit:
 - **Swagger UI**: http://localhost:8000/docs
