@@ -37,20 +37,20 @@ logger = logging.getLogger(__name__)
 async def lifespan(app: FastAPI):
     """Manage application lifecycle"""
     # Startup
-    logger.info("🚀 Starting Virtual Mirror API...")
+    logger.info("Starting Virtual Mirror API...")
     try:
         await init_db()
-        logger.info("✅ Database connection established")
+        logger.info("Database connection established")
     except Exception as e:
-        logger.error(f"❌ Database initialization failed: {e}")
+        logger.error(f"Database initialization failed: {e}")
         # Don't crash on startup - let health checks fail instead
     
     yield
     
     # Shutdown
-    logger.info("🛑 Shutting down Virtual Mirror API...")
+    logger.info("Shutting down Virtual Mirror API...")
     await engine.dispose()
-    logger.info("✅ Database connections closed")
+    logger.info("Database connections closed")
 
 # Initialize FastAPI with lifespan
 app = FastAPI(
@@ -77,7 +77,7 @@ CORS_ORIGINS.extend([
     "https://*.netlify.app"
 ])
 
-logger.info(f"🌐 CORS enabled for origins: {CORS_ORIGINS}")
+logger.info(f"CORS enabled for origins: {CORS_ORIGINS}")
 
 app.add_middleware(
     CORSMiddleware,
@@ -95,14 +95,16 @@ async def log_requests(request: Request, call_next):
     
     # Skip logging for health checks and favicon
     if request.url.path not in ["/health", "/favicon.ico"]:
-        logger.info(f"📥 {request.method} {request.url.path}")
+        logger.info(f"Request {request.method} {request.url.path}")
     
     response = await call_next(request)
     
     process_time = (datetime.now() - start_time).total_seconds()
     
     if request.url.path not in ["/health", "/favicon.ico"]:
-        logger.info(f"📤 {request.method} {request.url.path} - {response.status_code} ({process_time:.3f}s)")
+        logger.info(
+            f"Response {request.method} {request.url.path} - {response.status_code} ({process_time:.3f}s)"
+        )
     
     return response
 
@@ -132,7 +134,7 @@ async def health_check():
             "timestamp": datetime.utcnow().isoformat()
         }
     except Exception as e:
-        logger.error(f"❌ Health check failed: {e}")
+        logger.error(f"Health check failed: {e}")
         return JSONResponse(
             status_code=503,
             content={
@@ -170,7 +172,7 @@ async def create_session(
             session_type=session_data.session_type or "initial",
             parent_session_id=session_data.parent_session_id,
         )
-        logger.info(f"✅ Created session {db_session.id} for child: {session_data.child_name}")
+        logger.info(f"Created session {db_session.id} for child: {session_data.child_name}")
         return db_session
     except Exception as e:
         logger.error(f"Error creating session: {e}")
@@ -237,7 +239,7 @@ async def delete_session(
         
         await db.delete(session)
         await db.commit()
-        logger.info(f"🗑️ Deleted session {session_id}")
+        logger.info(f"Deleted session {session_id}")
         return {"message": "Session deleted successfully", "session_id": session_id}
     except HTTPException:
         raise
